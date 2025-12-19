@@ -316,7 +316,6 @@ export function App() {
       <header className="header">
         <div>
           <h1>BT Admin</h1>
-          <p className="muted">Core Ops (dashboard mínimo).</p>
         </div>
         {role ? (
           <div className="row">
@@ -355,9 +354,6 @@ export function App() {
           {busy ? <div className="mono">Loading: {busy}</div> : null}
           {loginState === "invalid_credentials" ? <div className="mono">Credenciais inválidas.</div> : null}
           {message ? <div className="mono">{message}</div> : null}
-          <div className="muted" style={{ marginTop: 10 }}>
-            Sem “lembrar sessão” no MVP: ao refrescar a página, voltas a autenticar.
-          </div>
         </section>
       ) : null}
 
@@ -608,9 +604,7 @@ export function App() {
                     Fechar
                   </button>
                 </div>
-                <p className="muted">
-                  Ação destrutiva. Não existe edição manual de estado. Após confirmar, a UI faz refresh via backend.
-                </p>
+                <p className="muted">Acao destrutiva.</p>
                 <div className="row">
                   <input
                     value={revokeReason}
@@ -652,7 +646,6 @@ export function App() {
           {view === "payments" ? (
             <section className="card">
               <h2>Pagamentos</h2>
-              <p className="muted">Read-only. Pagamentos so mudam via webhook.</p>
 
               <div className="row" style={{ marginBottom: 10 }}>
                 <input
@@ -759,7 +752,6 @@ export function App() {
           {view === "events" ? (
             <section className="card">
               <h2>Timeline de eventos (read-only)</h2>
-              <p className="muted">Ordem é definida pelo backend (não manipulável no frontend).</p>
 
               <div className="row" style={{ marginBottom: 10 }}>
                 <input
@@ -878,7 +870,7 @@ export function App() {
                 </button>
               </div>
               <div className="mono" style={{ marginTop: 10 }}>
-                {exportStatus.kind === "idle" ? "Ready (no preview in MVP)." : null}
+                {exportStatus.kind === "idle" ? "Ready." : null}
                 {exportStatus.kind === "loading" ? "Loading..." : null}
                 {exportStatus.kind === "ready" ? `Download ready: ${exportStatus.filename}` : null}
                 {exportStatus.kind === "error" ? `Error: ${exportStatus.message}` : null}

@@ -290,7 +290,6 @@ export function App() {
       <header className="bt-header">
         <div>
           <h1 className="bt-h1">Validar acesso</h1>
-          <p className="bt-muted">Submissão manual. Sem “inteligência” no cliente. O backend decide.</p>
         </div>
       </header>
 
@@ -311,9 +310,6 @@ export function App() {
             </Button>
           </div>
 
-          <div className="bt-muted" style={{ marginTop: 14, fontSize: 12 }}>
-            Ao validar, processamos o código apenas para confirmar acesso. Sem login. Sem armazenamento local.
-          </div>
         </section>
       ) : null}
 
@@ -334,9 +330,6 @@ export function App() {
                 >
                   {revealDecisionCode ? "Mascarar" : "Desmascarar"}
                 </Button>
-              </div>
-              <div className="bt-mono" style={{ marginTop: 10 }}>
-                Decisão (server time): {formatDateTime(decision.serverTime)}
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
                 {decision.message}
@@ -408,7 +401,6 @@ export function App() {
           <h2 className="bt-h2">Estado do pagamento</h2>
           {stripeSessionId ? (
             <>
-              <div className="bt-mono">Sessao: {stripeSessionId}</div>
               <div className="bt-row" style={{ marginTop: 10 }}>
                 <StatusBadge
                   tone={
@@ -422,7 +414,7 @@ export function App() {
                 />
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
-                {stripePolling ? "A atualizar..." : "Estado sincronizado via webhook."}
+                {stripePolling ? "A atualizar..." : null}
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={() => fetchStripeStatus(true)} disabled={busy !== null}>
