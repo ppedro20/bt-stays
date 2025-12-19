@@ -1,0 +1,12 @@
+{
+  "name": "bt-stays-supabase",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:user": "npm -w apps/user-web run dev",
+    "dev:admin": "npm -w apps/admin-web run dev",
+    "build": "npm -w apps/user-web run build && npm -w apps/admin-web run build",
+    "preview:user": "npm -w apps/user-web run preview",
+    "preview:admin": "npm -w apps/admin-web run preview"
+  }
+}
