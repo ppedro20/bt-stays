@@ -2,10 +2,10 @@
 
 ## Monorepo structure (non-optional)
 
-- `apps/user-web` — user browser app (no login)
-- `apps/admin-web` — admin browser app (Supabase Auth + RBAC)
-- `supabase` — migrations + Edge Functions
-- `packages/shared` — shared helpers/types (no business logic)
+- `apps/user-web` - public user app (no login)
+- `apps/admin-web` - admin app (Supabase Auth + RBAC)
+- `supabase` - migrations + Edge Functions
+- `packages/shared` - shared helpers/types (no business logic)
 
 Conventions:
 
@@ -14,22 +14,48 @@ Conventions:
 - ISO 8601 dates over the wire
 - JSON structured logs (Edge Functions)
 
-## 1) Create Supabase project
-npx supabase init
-npx supabase login
-npx supabase start
-npx supabase functions new <hello>
-npx supabase functions serve
-npx supabase functions deploy <hello>
+## Prereqs
 
-Enable:
+- Node.js 20+
+- Supabase CLI
+- Stripe account (test mode)
+
+## 1) Supabase project (local + remote)
+
+Local dev:
+
+```bash
+npx supabase start
+```
+
+Remote project (once):
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project_ref>
+```
+
+Enable in Supabase:
+
 - Postgres
-- Auth (Email / Password)
+- Auth (Email/Password)
 - Edge Functions
 
-## 2) Apply DB migrations
+## 2) Database migrations
 
-Apply all files in `supabase/migrations/` (in name order).
+Apply all files in `supabase/migrations/` in order.
+
+Local:
+
+```bash
+npx supabase db reset
+```
+
+Remote:
+
+```bash
+npx supabase db push
+```
 
 ## 3) Seed superadmin (manual)
 
@@ -43,15 +69,76 @@ values ('<AUTH_USER_UUID>', 'superadmin', true)
 on conflict (user_id) do update set role = excluded.role, active = excluded.active;
 ```
 
-## 4) Deploy Edge Functions
+## 4) Edge Functions env (required)
 
-Deploy all folders under `supabase/functions/`.
+Create `supabase/.env` from `supabase/.env.example`.
 
-Prepared (not live by default):
+Required:
 
-- `payment_webhook` requires `PAYMENT_WEBHOOK_SECRET` and header `x-webhook-secret`.
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-## 5) Configure apps
+Mock vs Stripe:
+
+- `PAYMENTS_PROVIDER=mock` (default)
+- `PAYMENTS_PROVIDER=stripe` (real)
+
+Stripe (if real):
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_SUCCESS_URL` (example: `https://<user-web>/#/b3/stripe?session_id={CHECKOUT_SESSION_ID}`)
+- `STRIPE_CANCEL_URL` (example: `https://<user-web>/#/b1`)
+- `PAYMENTS_DAY_PASS_AMOUNT_CENTS`
+- `PAYMENTS_CURRENCY` (default `EUR`)
+
+## 5) Deploy Edge Functions
+
+Deploy all folders under `supabase/functions/`:
+
+```bash
+npx supabase functions deploy
+```
+
+Key functions:
+
+- `start_purchase` - creates payment + Stripe Checkout session (or mock)
+- `payment_webhook` - Stripe signature validation + payment confirmation
+- `payment_status` - user polling
+- `confirm_purchase` - mock only (disabled when provider=stripe)
+- Admin functions: `admin_*`
+
+Notes:
+
+- Stripe live path uses `STRIPE_WEBHOOK_SECRET` (Stripe signature).
+- Legacy mock webhook uses `PAYMENT_WEBHOOK_SECRET` + `x-webhook-secret` header.
+
+## 6) Stripe sandbox setup (once)
+
+Stripe Dashboard (test mode):
+
+- Enable payment method: Card
+- Create product: "Acesso 1 dia"
+- Create fixed price in your business currency
+- Save:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_PUBLISHABLE_KEY`
+  - `STRIPE_WEBHOOK_SECRET`
+
+Webhook endpoint:
+
+```
+https://<project_ref>.supabase.co/functions/v1/payment_webhook
+```
+
+Events to send:
+
+- `checkout.session.completed`
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
+- `payment_intent.canceled`
+
+## 7) App envs
 
 Create env files from examples:
 
@@ -63,7 +150,7 @@ Vars:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-## 6) Run locally
+## 8) Run locally
 
 At repo root:
 
@@ -78,7 +165,38 @@ In another terminal:
 npm run dev:admin
 ```
 
-## 7) Admin exports / observability
+## 9) Payment model (mental model)
+
+- Pagamento = evento externo (Stripe/webhook).
+- Codigo de acesso = ativo interno.
+- Regra central: um codigo so transita para `active` apos evento Stripe validado no webhook.
+
+Payment states (Postgres):
+
+- `created` - intencao criada
+- `pending` - utilizador redirecionado / pagamento em curso
+- `paid` - confirmado por webhook
+- `failed` - falha definitiva
+- `expired` - intent abandonado
+- `refunded` - opcional pos-MVP
+
+Regra:
+
+- Nenhum frontend pode escrever `paid`.
+
+## 10) Admin dashboard (payments)
+
+Minimo:
+
+- Listar pagamentos
+- Filtrar por estado
+- Ver ligacao pagamento <-> codigo
+- Ver eventos Stripe associados
+- Export CSV
+
+Admins nao confirmam pagamentos manualmente.
+
+## 11) Observability / exports
 
 Dashboard exports CSV via Edge Functions:
 
@@ -86,5 +204,14 @@ Dashboard exports CSV via Edge Functions:
 - `admin_export_payments`
 - `admin_export_events`
 
-Edge Functions emit JSON structured logs and include `x-request-id` on export responses for correlation.
+Edge Functions emit JSON structured logs and include `x-request-id` on export responses.
 
+## 12) MVP acceptance checklist
+
+- Compra cria pagamento `pending`.
+- Webhook muda para `paid`.
+- Codigo e criado apenas apos webhook.
+- Codigo expira automaticamente.
+- Admin ve tudo.
+- CSV export funciona.
+- Mock e Stripe coexistem.

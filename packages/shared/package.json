@@ -2,6 +2,10 @@
   "name": "@bt/shared",
   "private": true,
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./ui/styles.css": "./src/ui/styles.css"
+  }
 }
-

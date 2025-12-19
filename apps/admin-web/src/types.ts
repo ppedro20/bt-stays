@@ -1,5 +1,6 @@
 export type AdminListResponse = {
   ok: true;
+  server_time: string;
   me: {
     user_id: string;
     role: "admin" | "superadmin";
@@ -10,6 +11,7 @@ export type AdminListResponse = {
     product_code: string;
     purchase_status: string;
     code_last2: string;
+    code_plaintext: string | null;
     issued_at: string;
     valid_until: string;
     used_at: string | null;
@@ -18,7 +20,7 @@ export type AdminListResponse = {
     code_status: "issued" | "used" | "revoked" | "expired";
   }>;
   audit: Array<{
-    id: number;
+    event_id: string;
     created_at: string;
     event_type: string;
     entity_type: string;
@@ -27,6 +29,7 @@ export type AdminListResponse = {
     actor_id: string | null;
     ip: string | null;
     details: unknown;
+    synthetic: boolean;
   }>;
 };
 
@@ -34,6 +37,18 @@ export type AdminCodeDetailResponse = {
   ok: true;
   me: { user_id: string; role: "admin" | "superadmin" };
   code: AdminListResponse["codes"][number];
+  payment: {
+    payment_id: string;
+    status: string;
+    created_at: string;
+    paid_at: string | null;
+    canceled_at: string | null;
+    confirmed_via: string | null;
+    confirmed_at: string | null;
+    provider: string | null;
+    provider_payment_id: string | null;
+    provider_status: string | null;
+  } | null;
   events: Array<{
     event_id: string;
     created_at: string;

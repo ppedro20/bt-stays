@@ -6,6 +6,7 @@ type Body = {
   entity_type?: string;
   entity_id?: string;
   event_type?: string;
+  code?: string;
   since?: string;
   until?: string;
   limit?: number;
@@ -41,6 +42,32 @@ Deno.serve(async (req) => {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  const code = body.code?.trim();
+  if (code && /^[0-9]{6}$/.test(code)) {
+    const resolved = await supabaseAdmin
+      .from("admin_codes")
+      .select("code_id")
+      .eq("code_plaintext", code)
+      .maybeSingle();
+
+    if (resolved.error) {
+      return new Response(JSON.stringify({ error: resolved.error.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!resolved.data?.code_id) {
+      return new Response(JSON.stringify({ error: "code_not_found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    body.entity_type = "access_code";
+    body.entity_id = resolved.data.code_id as string;
+  }
 
   if (body.entity_type) query = query.eq("entity_type", body.entity_type);
   if (body.entity_id) query = query.eq("entity_id", body.entity_id);

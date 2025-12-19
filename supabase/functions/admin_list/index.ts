@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       ok: true,
+      server_time: new Date().toISOString(),
       me: { user_id: auth.userId, role: auth.role },
       codes: codes.data,
       audit: audit.data,

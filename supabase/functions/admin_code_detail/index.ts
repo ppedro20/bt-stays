@@ -3,6 +3,18 @@ import { assertAdmin } from "../_shared/adminAuth.ts";
 import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 
 type Body = { code_id?: string };
+type PaymentRow = {
+  payment_id: string;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+  canceled_at: string | null;
+  confirmed_via: string | null;
+  confirmed_at: string | null;
+  provider: string | null;
+  provider_payment_id: string | null;
+  provider_status: string | null;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,6 +67,21 @@ Deno.serve(async (req) => {
 
   const purchaseId = code.data.purchase_id as string;
 
+  const payment = await supabaseAdmin
+    .from("admin_payments")
+    .select(
+      "payment_id,status,created_at,paid_at,canceled_at,confirmed_via,confirmed_at,provider,provider_payment_id,provider_status",
+    )
+    .eq("payment_id", purchaseId)
+    .maybeSingle();
+
+  if (payment.error) {
+    return new Response(JSON.stringify({ error: payment.error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const events = await supabaseAdmin
     .from("events_timeline")
     .select("*")
@@ -76,6 +103,7 @@ Deno.serve(async (req) => {
       ok: true,
       me: { user_id: auth.userId, role: auth.role },
       code: code.data,
+      payment: payment.data as PaymentRow | null,
       events: events.data,
     }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },

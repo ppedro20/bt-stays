@@ -31,6 +31,12 @@ Hard constraints (fora do scope do MVP):
 - Sem QR (apenas preparado para evoluir)
 - Supabase e a single source of truth
 
+## Payment model (mental model)
+
+- Pagamento = evento externo (Stripe/webhook).
+- Codigo de acesso = ativo interno.
+- Regra central: um codigo so transita para `active` apos evento Stripe validado no webhook.
+
 ## System shape (logical, not tech)
 
 Actors:
@@ -44,6 +50,22 @@ Authority:
 
 - Todas as decisoes vivem na logica Supabase/Postgres.
 - Frontends sao "dumb" e nao sao confiaveis.
+
+## UI/UX (não negociáveis)
+
+- Frontends são stateless, descartáveis, não confiáveis.
+- Toda a UI reflete estado vindo do Supabase (nunca decisões locais/persistência local).
+- UX determinística: mesmo input → mesmo output (sem “inteligência” no cliente).
+- Erros sempre explícitos (mensagem vinda da API), sem retries mágicos.
+- UI preparada para auditoria humana.
+
+## Module A — Design System Base (antes de qualquer ecrã)
+
+- Fonte: `packages/shared/src/ui/`
+- Estilos/tokens: `packages/shared/src/ui/styles.css` (paleta neutra + 1 primária + erro + sucesso)
+- Componentes mínimos: `Button`, `InputCode6`, `StatusBadge`, `Table`, `Modal`, `Toast`
+- Estados globais: `BlockingLoading`, `ErrorState`, `EmptyState`
+- Preview manual (user-web): abrir `apps/user-web` e navegar para `#/ds`
 
 ## Module execution order (mandatory)
 

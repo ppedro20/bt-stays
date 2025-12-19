@@ -22,6 +22,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    const provider = Deno.env.get("PAYMENTS_PROVIDER")?.trim().toLowerCase() ?? "mock";
+    if (provider !== "mock") {
+      return new Response(JSON.stringify({ error: "not_supported" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const ip = getClientIp(req);
     const rl = rateLimit(`confirm_purchase:${ip}`, 10, 60_000);
     if (!rl.ok) {

@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       ok: true,
+      server_time: new Date().toISOString(),
       status: {
         state: row.state,
         can_access: row.can_access,
@@ -80,4 +81,3 @@ Deno.serve(async (req) => {
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
-
