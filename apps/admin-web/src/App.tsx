@@ -344,7 +344,7 @@ export function App() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="password"
-              type="password"
+              type="text"
               autoComplete="current-password"
               disabled={busy !== null}
             />
@@ -431,7 +431,7 @@ export function App() {
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="code_id | purchase_id | **last2"
+                  placeholder="code | code_id | purchase_id"
                   autoComplete="off"
                   disabled={busy !== null}
                 />
@@ -458,6 +458,7 @@ export function App() {
                   const matches = data.codes
                     .filter((c) => {
                       if (isUuid(q)) return c.code_id === q || c.purchase_id === q;
+                      if (c.code_plaintext && c.code_plaintext.includes(q)) return true;
                       if (qDigits.length === 2) return c.code_last2 === qDigits;
                       return c.code_id.includes(q) || c.purchase_id.includes(q);
                     })
@@ -479,7 +480,9 @@ export function App() {
                         {matches.map((c) => (
                           <tr key={c.code_id}>
                             <td className="mono">{c.code_status}</td>
-                            <td className="mono">**{c.code_last2}</td>
+                            <td className="mono">
+                              {c.code_plaintext ? c.code_plaintext : "INDISPONÍVEL (não armazenado)"}
+                            </td>
                             <td className="mono">{formatDateTime(c.valid_until)}</td>
                             <td className="mono">{c.purchase_id}</td>
                             <td>
@@ -835,7 +838,7 @@ export function App() {
                           {(() => {
                             try {
                               const s = JSON.stringify(e.details);
-                              return s.length > 160 ? `${s.slice(0, 160)}…` : s;
+                              return s;
                             } catch {
                               return "-";
                             }
