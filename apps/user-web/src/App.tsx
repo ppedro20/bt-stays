@@ -1,17 +1,301 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import type { CheckAccessStatusResponse, CreatePurchaseResponse, DemoPayResponse, PaymentStatusResponse } from "./types";
 import { BlockingLoading, Button, EmptyState, ErrorState, InputCode6, StatusBadge, useToast } from "@bt/shared/ui";
 import { PwaNotifications } from "./PwaNotifications";
 
-function formatDateTime(iso: string | null) {
+type Language = "pt" | "en" | "fr";
+
+const LANGUAGE_KEY = "bt_language";
+const LANGUAGE_LABELS: Record<Language, string> = {
+  pt: "Português",
+  en: "English",
+  fr: "Français",
+};
+const LOCALE_BY_LANGUAGE: Record<Language, string> = {
+  pt: "pt-PT",
+  en: "en-GB",
+  fr: "fr-FR",
+};
+
+type TranslationFn = (params: Record<string, string>) => string;
+
+const TRANSLATIONS: Record<Language, Record<string, string | TranslationFn>> = {
+  pt: {
+    language_label: "Idioma",
+    unknown_error: "Erro desconhecido.",
+    invalid_server_response: "Resposta inválida do servidor.",
+    require_online_validate: "Requer ligação à internet para validar o código.",
+    require_online_continue_payment: "Requer ligação à internet para continuar o pagamento.",
+    require_online_confirm_purchase: "Requer ligação à internet para confirmar a compra.",
+    require_online_refresh_payment: "Requer ligação à internet para atualizar o estado do pagamento.",
+    pending_purchase_resume: "Compra pendente. Assim que tiveres ligação, continuamos.",
+    offline_queued: "Sem ligação. A compra foi colocada em fila.",
+    pending_purchase_title: "Compra pendente",
+    pending_purchase_toast: "Vamos tentar assim que estiveres online.",
+    access_allowed: "Acesso permitido.",
+    access_denied: "Acesso negado.",
+    my_codes: "Meus códigos",
+    empty_codes: "Ainda nao tens codigos guardados.",
+    code_label: "Código",
+    valid_until_label: "Válido até",
+    purchase_history_title: "Histórico de compras",
+    id_label: "ID",
+    total_label: "Total",
+    updated_label: "Atualizado",
+    title_validate_access: "Validar acesso",
+    retry: "Tentar novamente",
+    pending_purchase_badge: "COMPRA PENDENTE",
+    pending_purchase_note: "Será retomada quando a ligação voltar.",
+    access_code_aria: "Código de acesso",
+    validate: "Validar",
+    buy_access_one_day: "Comprar acesso 1 dia",
+    result_title: "Resultado",
+    mask: "Mascarar",
+    unmask: "Desmascarar",
+    back: "Voltar",
+    empty_decision: "Sem decisão. Volta ao ecrã de validação e submete manualmente.",
+    confirm_stripe_title: "Continuar pagamento (Stripe)",
+    confirm_mock_title: "Confirmar compra (mock)",
+    product_label: "Produto",
+    product_day_pass: "Acesso 1 dia",
+    price_label: "Preço",
+    validity_label: "Validade",
+    go_to_payment: "Ir para pagamento",
+    confirm: "Confirmar",
+    empty_purchase: ({ cta }) => `Sem compra iniciada. Volta e clica em "${cta}".`,
+    payment_status_title: "Estado do pagamento",
+    updating: "A atualizar...",
+    refresh: "Atualizar",
+    empty_stripe_session: "Sessão em falta. Volta ao início e inicia a compra.",
+    issued_code_title: "Código emitido",
+    valid_until_text: ({ date }) => `Válido até: ${date}`,
+    issued_notice: "Aviso: este código fica guardado neste dispositivo.",
+    empty_code: "Sem código. Faz a confirmação na cloud.",
+    busy_start_purchase: "A iniciar compra...",
+    busy_check_access_status: "A validar...",
+    busy_confirm_purchase: "A confirmar compra...",
+    busy_payment_status: "A atualizar pagamento...",
+    decision_valid: "VÁLIDO",
+    decision_expired: "EXPIRADO",
+    decision_revoked: "REVOGADO",
+    decision_not_found: "NÃO ENCONTRADO",
+    status_active: "ATIVO",
+    status_expired: "EXPIRADO",
+    status_paid: "PAGO",
+    status_failed: "FALHOU",
+    status_refunded: "REEMBOLSADO",
+    status_canceled: "CANCELADO",
+    status_pending: "PENDENTE",
+    status_issued: "EMITIDO",
+  },
+  en: {
+    language_label: "Language",
+    unknown_error: "Unknown error.",
+    invalid_server_response: "Invalid server response.",
+    require_online_validate: "Internet connection required to validate the code.",
+    require_online_continue_payment: "Internet connection required to continue the payment.",
+    require_online_confirm_purchase: "Internet connection required to confirm the purchase.",
+    require_online_refresh_payment: "Internet connection required to refresh payment status.",
+    pending_purchase_resume: "Purchase pending. We'll resume once you're back online.",
+    offline_queued: "Offline. The purchase was queued.",
+    pending_purchase_title: "Pending purchase",
+    pending_purchase_toast: "We'll retry as soon as you're online.",
+    access_allowed: "Access granted.",
+    access_denied: "Access denied.",
+    my_codes: "My codes",
+    empty_codes: "No saved codes yet.",
+    code_label: "Code",
+    valid_until_label: "Valid until",
+    purchase_history_title: "Purchase history",
+    id_label: "ID",
+    total_label: "Total",
+    updated_label: "Updated",
+    title_validate_access: "Validate access",
+    retry: "Try again",
+    pending_purchase_badge: "PENDING PURCHASE",
+    pending_purchase_note: "Will resume when connection is back.",
+    access_code_aria: "Access code",
+    validate: "Validate",
+    buy_access_one_day: "Buy 1-day access",
+    result_title: "Result",
+    mask: "Mask",
+    unmask: "Unmask",
+    back: "Back",
+    empty_decision: "No decision. Go back to the validation screen and submit manually.",
+    confirm_stripe_title: "Continue payment (Stripe)",
+    confirm_mock_title: "Confirm purchase (mock)",
+    product_label: "Product",
+    product_day_pass: "1-day access",
+    price_label: "Price",
+    validity_label: "Validity",
+    go_to_payment: "Go to payment",
+    confirm: "Confirm",
+    empty_purchase: ({ cta }) => `No purchase started. Go back and click "${cta}".`,
+    payment_status_title: "Payment status",
+    updating: "Updating...",
+    refresh: "Refresh",
+    empty_stripe_session: "Missing session. Go back to the start and begin the purchase.",
+    issued_code_title: "Issued code",
+    valid_until_text: ({ date }) => `Valid until: ${date}`,
+    issued_notice: "Note: this code is stored on this device.",
+    empty_code: "No code. Confirm in the cloud.",
+    busy_start_purchase: "Starting purchase...",
+    busy_check_access_status: "Validating...",
+    busy_confirm_purchase: "Confirming purchase...",
+    busy_payment_status: "Refreshing payment...",
+    decision_valid: "VALID",
+    decision_expired: "EXPIRED",
+    decision_revoked: "REVOKED",
+    decision_not_found: "NOT FOUND",
+    status_active: "ACTIVE",
+    status_expired: "EXPIRED",
+    status_paid: "PAID",
+    status_failed: "FAILED",
+    status_refunded: "REFUNDED",
+    status_canceled: "CANCELED",
+    status_pending: "PENDING",
+    status_issued: "ISSUED",
+  },
+  fr: {
+    language_label: "Langue",
+    unknown_error: "Erreur inconnue.",
+    invalid_server_response: "Réponse du serveur invalide.",
+    require_online_validate: "Connexion internet requise pour valider le code.",
+    require_online_continue_payment: "Connexion internet requise pour continuer le paiement.",
+    require_online_confirm_purchase: "Connexion internet requise pour confirmer l'achat.",
+    require_online_refresh_payment: "Connexion internet requise pour actualiser l'état du paiement.",
+    pending_purchase_resume: "Achat en attente. Nous reprendrons dès que vous serez en ligne.",
+    offline_queued: "Hors ligne. L'achat a été mis en file d'attente.",
+    pending_purchase_title: "Achat en attente",
+    pending_purchase_toast: "Nous réessaierons dès que vous serez en ligne.",
+    access_allowed: "Accès autorisé.",
+    access_denied: "Accès refusé.",
+    my_codes: "Mes codes",
+    empty_codes: "Aucun code enregistre pour le moment.",
+    code_label: "Code",
+    valid_until_label: "Valable jusqu'au",
+    purchase_history_title: "Historique des achats",
+    id_label: "ID",
+    total_label: "Total",
+    updated_label: "Mis à jour",
+    title_validate_access: "Valider l'accès",
+    retry: "Réessayer",
+    pending_purchase_badge: "ACHAT EN ATTENTE",
+    pending_purchase_note: "Reprendra quand la connexion sera revenue.",
+    access_code_aria: "Code d'accès",
+    validate: "Valider",
+    buy_access_one_day: "Acheter un accès 1 jour",
+    result_title: "Résultat",
+    mask: "Masquer",
+    unmask: "Démasquer",
+    back: "Retour",
+    empty_decision: "Aucune décision. Revenez à l'écran de validation et soumettez manuellement.",
+    confirm_stripe_title: "Continuer le paiement (Stripe)",
+    confirm_mock_title: "Confirmer l'achat (mock)",
+    product_label: "Produit",
+    product_day_pass: "Accès 1 jour",
+    price_label: "Prix",
+    validity_label: "Validité",
+    go_to_payment: "Aller au paiement",
+    confirm: "Confirmer",
+    empty_purchase: ({ cta }) => `Aucun achat démarré. Revenez en arrière et cliquez sur "${cta}".`,
+    payment_status_title: "État du paiement",
+    updating: "Mise à jour...",
+    refresh: "Actualiser",
+    empty_stripe_session: "Session manquante. Revenez au début et lancez l'achat.",
+    issued_code_title: "Code émis",
+    valid_until_text: ({ date }) => `Valable jusqu'au : ${date}`,
+    issued_notice: "Note : ce code est enregistré sur cet appareil.",
+    empty_code: "Aucun code. Confirmez dans le cloud.",
+    busy_start_purchase: "Démarrage de l'achat...",
+    busy_check_access_status: "Validation...",
+    busy_confirm_purchase: "Confirmation de l'achat...",
+    busy_payment_status: "Actualisation du paiement...",
+    decision_valid: "VALIDE",
+    decision_expired: "EXPIRÉ",
+    decision_revoked: "RÉVOQUÉ",
+    decision_not_found: "INTROUVABLE",
+    status_active: "ACTIF",
+    status_expired: "EXPIRÉ",
+    status_paid: "PAYÉ",
+    status_failed: "ÉCHOUÉ",
+    status_refunded: "REMBOURSÉ",
+    status_canceled: "ANNULÉ",
+    status_pending: "EN ATTENTE",
+    status_issued: "ÉMIS",
+  },
+} as const;
+
+type TranslationKey = keyof typeof TRANSLATIONS.pt;
+
+function normalizeLanguage(input: string | null | undefined): Language | null {
+  if (!input) return null;
+  const value = input.toLowerCase();
+  if (value.startsWith("pt")) return "pt";
+  if (value.startsWith("fr")) return "fr";
+  if (value.startsWith("en")) return "en";
+  return null;
+}
+
+function readLanguage(): Language {
+  const stored = normalizeLanguage(localStorage.getItem(LANGUAGE_KEY));
+  if (stored) return stored;
+  const browser = normalizeLanguage(navigator.languages?.[0] ?? navigator.language);
+  return browser ?? "pt";
+}
+
+function formatDateTime(iso: string | null, locale: string) {
   if (!iso) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("pt-PT", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(d);
+}
+
+function formatPrice(amountCents: number | null, currency: string | null, locale: string) {
+  if (amountCents === null || !currency) return "-";
+  try {
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${currency}`;
+  }
+}
+
+function translate(lang: Language, key: TranslationKey, params?: Record<string, string>) {
+  const entry = TRANSLATIONS[lang][key];
+  if (typeof entry === "function") {
+    return entry(params ?? {});
+  }
+  return entry;
+}
+
+function statusLabel(lang: Language, status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return translate(lang, "status_active");
+  if (normalized === "expired") return translate(lang, "status_expired");
+  if (normalized === "paid") return translate(lang, "status_paid");
+  if (normalized === "failed") return translate(lang, "status_failed");
+  if (normalized === "refunded") return translate(lang, "status_refunded");
+  if (normalized === "canceled" || normalized === "cancelled") return translate(lang, "status_canceled");
+  if (normalized === "pending") return translate(lang, "status_pending");
+  if (normalized === "issued") return translate(lang, "status_issued");
+  return status;
+}
+
+function busyLabel(lang: Language, busy: string) {
+  if (busy === "start_purchase") return translate(lang, "busy_start_purchase");
+  if (busy === "check_access_status") return translate(lang, "busy_check_access_status");
+  if (busy === "confirm_purchase") return translate(lang, "busy_confirm_purchase");
+  if (busy === "payment_status") return translate(lang, "busy_payment_status");
+  return busy;
+}
+
+function normalizeErrorMessage(e: unknown, lang: Language) {
+  if (e instanceof Error) return e.message;
+  return translate(lang, "unknown_error");
 }
 
 type Page = "b1" | "b2" | "b3_confirm" | "b3_code" | "b3_stripe" | "ds";
@@ -40,17 +324,19 @@ function go(page: Page) {
   else window.location.hash = "#/ds";
 }
 
-function normalizeErrorMessage(e: unknown) {
-  if (e instanceof Error) return e.message;
-  return "Erro desconhecido";
-}
-
 type Decision = {
   codeLast3: string;
   state: "VALID" | "EXPIRED" | "REVOKED" | "NOT_FOUND";
   serverTime: string;
   message: string;
 };
+
+function decisionLabel(lang: Language, state: Decision["state"]) {
+  if (state === "VALID") return translate(lang, "decision_valid");
+  if (state === "EXPIRED") return translate(lang, "decision_expired");
+  if (state === "REVOKED") return translate(lang, "decision_revoked");
+  return translate(lang, "decision_not_found");
+}
 
 type Purchase = {
   id: string;
@@ -201,6 +487,7 @@ function makeClientToken() {
 
 export function App() {
   const { push } = useToast();
+  const [language, setLanguage] = useState<Language>(() => readLanguage());
   const [code, setCode] = useState<string>("");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [revealDecisionCode, setRevealDecisionCode] = useState<boolean>(false);
@@ -212,7 +499,7 @@ export function App() {
   const [stripeStatus, setStripeStatus] = useState<PaymentStatus | null>(null);
   const [stripePolling, setStripePolling] = useState<boolean>(false);
   const [savedCodes, setSavedCodes] = useState<SavedCode[]>(() => readSavedCodes());
-  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryItem[]>(() => readPurchaseHistory());
+  const [, setPurchaseHistory] = useState<PurchaseHistoryItem[]>(() => readPurchaseHistory());
 
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>(() => parseHashRoute().page ?? "b1");
@@ -221,6 +508,9 @@ export function App() {
   const [retryAction, setRetryAction] = useState<"validate" | "start_purchase" | "confirm_purchase" | "payment_status" | null>(
     null,
   );
+
+  const locale = LOCALE_BY_LANGUAGE[language];
+  const t = (key: TranslationKey, params?: Record<string, string>) => translate(language, key, params);
 
   function requireOnline(action: typeof retryAction, message: string) {
     if (navigator.onLine) return true;
@@ -262,7 +552,7 @@ export function App() {
         body: { product_code: "day_pass", client_token: clientToken },
       });
       if (error) throw error;
-      if (!data?.purchase) throw new Error("Resposta invÇ­lida do servidor");
+      if (!data?.purchase) throw new Error(t("invalid_server_response"));
 
       writePendingPurchase(null);
       setPendingPurchase(null);
@@ -291,7 +581,7 @@ export function App() {
       setPage("b3_confirm");
       go("b3_confirm");
     } catch (e) {
-      setError(normalizeErrorMessage(e));
+      setError(normalizeErrorMessage(e, language));
       if (!navigator.onLine && source === "manual") {
         const pending = { token: clientToken, productCode: "day_pass", createdAt: new Date().toISOString() };
         writePendingPurchase(pending);
@@ -303,6 +593,10 @@ export function App() {
       setBusy(null);
     }
   }
+
+  useEffect(() => {
+    localStorage.setItem(LANGUAGE_KEY, language);
+  }, [language]);
 
   useEffect(() => {
     const onHash = () => {
@@ -323,7 +617,7 @@ export function App() {
   }, []);
 
   async function onValidate() {
-    if (!requireOnline("validate", "Requer ligacao a internet para validar o codigo.")) return;
+    if (!requireOnline("validate", t("require_online_validate"))) return;
     setBusy("check_access_status");
     setError(null);
     setRetryAction(null);
@@ -332,7 +626,7 @@ export function App() {
         body: { code },
       });
       if (error) throw error;
-      if (!data?.status || !data?.server_time) throw new Error("Resposta inválida do servidor");
+      if (!data?.status || !data?.server_time) throw new Error(t("invalid_server_response"));
 
       const status = data.status;
       const mappedState =
@@ -356,12 +650,12 @@ export function App() {
         codeLast3: code.slice(-3),
         state: mappedState,
         serverTime: data.server_time,
-        message: mappedState === "VALID" ? "Acesso permitido." : "Acesso negado.",
+        message: mappedState === "VALID" ? t("access_allowed") : t("access_denied"),
       });
       setPage("b2");
       go("b2");
     } catch (e) {
-      setError(normalizeErrorMessage(e));
+      setError(normalizeErrorMessage(e, language));
     } finally {
       setBusy(null);
     }
@@ -380,13 +674,13 @@ export function App() {
     setRetryAction(null);
     if (!navigator.onLine) {
       if (pendingPurchase) {
-        setError("Compra pendente. Assim que tiveres ligacao, continuamos.");
+        setError(t("pending_purchase_resume"));
       } else {
         const pending = { token: makeClientToken(), productCode: "day_pass", createdAt: new Date().toISOString() };
         writePendingPurchase(pending);
         setPendingPurchase(pending);
-        setError("Sem ligacao. A compra foi colocada em fila.");
-        push({ title: "Compra pendente", message: "Vamos tentar assim que estiveres online." });
+        setError(t("offline_queued"));
+        push({ title: t("pending_purchase_title"), message: t("pending_purchase_toast") });
       }
       return;
     }
@@ -400,11 +694,11 @@ export function App() {
   async function onBuyConfirm() {
     if (!purchase) return;
     if (purchase.checkoutUrl) {
-      if (!requireOnline("confirm_purchase", "Requer ligacao a internet para continuar o pagamento.")) return;
+      if (!requireOnline("confirm_purchase", t("require_online_continue_payment"))) return;
       window.location.href = purchase.checkoutUrl;
       return;
     }
-    if (!requireOnline("confirm_purchase", "Requer ligacao a internet para confirmar a compra.")) return;
+    if (!requireOnline("confirm_purchase", t("require_online_confirm_purchase"))) return;
     setBusy("confirm_purchase");
     setError(null);
     setRetryAction(null);
@@ -414,7 +708,7 @@ export function App() {
       });
       if (error) throw error;
       if (!data?.result?.access_code || !data.result.valid_until || !data.result.purchase_id) {
-        throw new Error("Resposta inválida do servidor");
+        throw new Error(t("invalid_server_response"));
       }
 
       rememberIssued({
@@ -437,7 +731,7 @@ export function App() {
       setPage("b3_code");
       go("b3_code");
     } catch (e) {
-      setError(normalizeErrorMessage(e));
+      setError(normalizeErrorMessage(e, language));
     } finally {
       setBusy(null);
     }
@@ -457,7 +751,7 @@ export function App() {
   async function fetchStripeStatus(manual = false): Promise<PaymentStatus | null> {
     if (!navigator.onLine) {
       if (manual) {
-        setError("Requer ligacao a internet para atualizar o estado do pagamento.");
+        setError(t("require_online_refresh_payment"));
         setRetryAction("payment_status");
       }
       return null;
@@ -471,7 +765,7 @@ export function App() {
         body: { provider_payment_id: stripeSessionId },
       });
       if (error) throw error;
-      if (!data?.payment) throw new Error("Resposta invǭlida do servidor");
+      if (!data?.payment) throw new Error(t("invalid_server_response"));
 
       const status: PaymentStatus = {
         status: data.payment.status,
@@ -504,7 +798,7 @@ export function App() {
       }
       return status;
     } catch (e) {
-      setError(normalizeErrorMessage(e));
+      setError(normalizeErrorMessage(e, language));
       return null;
     } finally {
       if (manual) setBusy(null);
@@ -554,64 +848,69 @@ export function App() {
   const fullIssued = issued?.code ?? null;
   const maskedDecision = code ? `***${code.slice(-3)}` : "***";
   const savedList = savedCodes;
-  const savedCodesView = savedList.length ? (
+  const savedCodesView = (
     <section className="bt-card" style={{ marginTop: 12 }}>
-      <h2 className="bt-h2">Meus codigos</h2>
-      {savedList.map((item) => {
-        const status = item.validUntil && new Date(item.validUntil).getTime() > Date.now() ? "ACTIVE" : "EXPIRED";
-        return (
-          <div
-            key={`${item.purchaseId}-${item.code}`}
-            className="bt-row"
-            style={{ justifyContent: "space-between", alignItems: "center", marginTop: 10 }}
-          >
-            <div className="bt-mono">Codigo: {item.code}</div>
-            <div className="bt-mono">Valido ate: {formatDateTime(item.validUntil)}</div>
-            <StatusBadge tone={status === "ACTIVE" ? "success" : "danger"} text={status} />
-          </div>
-        );
-      })}
+      <h2 className="bt-h2">{t("my_codes")}</h2>
+      {savedList.length ? (
+        savedList.map((item) => {
+          const status = item.validUntil && new Date(item.validUntil).getTime() > Date.now() ? "ACTIVE" : "EXPIRED";
+          const statusText = statusLabel(language, status);
+          return (
+            <div
+              key={`${item.purchaseId}-${item.code}`}
+              className="bt-row"
+              style={{ justifyContent: "space-between", alignItems: "center", marginTop: 10 }}
+            >
+              <div className="bt-mono">
+                {t("code_label")}: {item.code}
+              </div>
+              <div className="bt-mono">
+                {t("valid_until_label")}: {formatDateTime(item.validUntil, locale)}
+              </div>
+              <StatusBadge tone={status === "ACTIVE" ? "success" : "danger"} text={statusText} />
+            </div>
+          );
+        })
+      ) : (
+        <EmptyState message={t("empty_codes")} />
+      )}
     </section>
-  ) : null;
-  const purchaseHistoryView = purchaseHistory.length ? (
-    <section className="bt-card" style={{ marginTop: 12 }}>
-      <h2 className="bt-h2">Historico de compras</h2>
-      {purchaseHistory.map((item) => {
-        const status = item.status.toUpperCase();
-        const tone =
-          status === "PAID"
-            ? "success"
-            : status === "FAILED" || status === "EXPIRED" || status === "REFUNDED" || status === "CANCELED"
-              ? "danger"
-              : "neutral";
-        const price =
-          item.amountCents !== null && item.currency
-            ? `${(item.amountCents / 100).toFixed(2)} ${item.currency}`
-            : "-";
-        return (
-          <div
-            key={item.purchaseId}
-            className="bt-row"
-            style={{ justifyContent: "space-between", alignItems: "center", marginTop: 10 }}
-          >
-            <div className="bt-mono">ID: {item.purchaseId.slice(-6)}</div>
-            <div className="bt-mono">Total: {price}</div>
-            <div className="bt-mono">Atualizado: {formatDateTime(item.updatedAt)}</div>
-            <StatusBadge tone={tone} text={status} />
-          </div>
-        );
-      })}
-    </section>
-  ) : null;
+  );
 
   return (
     <div className="bt-container">
-      {busy ? <BlockingLoading label={busy} /> : null}
+      {busy ? <BlockingLoading label={busyLabel(language, busy)} /> : null}
       <header className="bt-header">
         <div>
-          <h1 className="bt-h1">Validar acesso</h1>
+          <h1 className="bt-h1">{t("title_validate_access")}</h1>
         </div>
-        <PwaNotifications />
+        <div className="bt-row" style={{ gap: 8, alignItems: "center" }}>
+          <span className="bt-label">{t("language_label")}</span>
+          <div className="bt-row" role="group" aria-label={t("language_label")} style={{ gap: 6 }}>
+            <Button
+              variant={language === "pt" ? "primary" : "ghost"}
+              onClick={() => setLanguage("pt")}
+              aria-label={LANGUAGE_LABELS.pt}
+            >
+              🇵🇹
+            </Button>
+            <Button
+              variant={language === "en" ? "primary" : "ghost"}
+              onClick={() => setLanguage("en")}
+              aria-label={LANGUAGE_LABELS.en}
+            >
+              🇬🇧
+            </Button>
+            <Button
+              variant={language === "fr" ? "primary" : "ghost"}
+              onClick={() => setLanguage("fr")}
+              aria-label={LANGUAGE_LABELS.fr}
+            >
+              🇫🇷
+            </Button>
+          </div>
+          <PwaNotifications language={language} />
+        </div>
       </header>
 
       {error ? (
@@ -632,7 +931,7 @@ export function App() {
                 }}
                 disabled={busy !== null}
               >
-                Tentar novamente
+                {t("retry")}
               </Button>
             </div>
           ) : null}
@@ -644,36 +943,37 @@ export function App() {
           <section className="bt-card">
             {pendingPurchase ? (
               <div className="bt-row" style={{ marginBottom: 10 }}>
-                <StatusBadge tone="neutral" text="COMPRA PENDENTE" />
-                <div className="bt-mono">Sera retomada quando a ligacao voltar.</div>
+                <StatusBadge tone="neutral" text={t("pending_purchase_badge")} />
+                <div className="bt-mono">{t("pending_purchase_note")}</div>
               </div>
             ) : null}
             <div className="bt-row">
-              <InputCode6 value={code} onChange={setCode} aria-label="Codigo de acesso" />
+              <InputCode6 value={code} onChange={setCode} aria-label={t("access_code_aria")} />
               <Button variant="primary" onClick={onValidate} disabled={busy !== null}>
-                Validar
+                {t("validate")}
               </Button>
             </div>
 
             <div className="bt-row" style={{ marginTop: 12 }}>
               <Button variant="ghost" onClick={onBuyStart} disabled={busy !== null}>
-                Comprar acesso 1 dia
+                {t("buy_access_one_day")}
               </Button>
             </div>
           </section>
-          {purchaseHistoryView}
           {savedCodesView}
         </>
       ) : null}
 
       {page === "b2" ? (
         <section className="bt-card">
-          <h2 className="bt-h2">Resultado</h2>
+          <h2 className="bt-h2">{t("result_title")}</h2>
           {decision ? (
             <>
               <div className="bt-row" style={{ justifyContent: "space-between" }}>
-                <div className="bt-mono">Código: {revealDecisionCode ? code : maskedDecision}</div>
-                <StatusBadge tone={decision.state === "VALID" ? "success" : "danger"} text={decision.state} />
+                <div className="bt-mono">
+                  {t("code_label")}: {revealDecisionCode ? code : maskedDecision}
+                </div>
+                <StatusBadge tone={decision.state === "VALID" ? "success" : "danger"} text={decisionLabel(language, decision.state)} />
               </div>
               <div className="bt-row" style={{ marginTop: 10 }}>
                 <Button
@@ -681,7 +981,7 @@ export function App() {
                   onClick={() => setRevealDecisionCode((v) => !v)}
                   disabled={busy !== null || !code}
                 >
-                  {revealDecisionCode ? "Mascarar" : "Desmascarar"}
+                  {revealDecisionCode ? t("mask") : t("unmask")}
                 </Button>
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
@@ -689,16 +989,16 @@ export function App() {
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBackToValidate} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <EmptyState message="Sem decisão. Volta ao ecrã de validação e submete manualmente." />
+              <EmptyState message={t("empty_decision")} />
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBackToValidate} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
@@ -708,40 +1008,38 @@ export function App() {
 
       {page === "b3_confirm" ? (
         <section className="bt-card">
-          <h2 className="bt-h2">{purchase?.checkoutUrl ? "Continuar pagamento (Stripe)" : "Confirmar compra (mock)"}</h2>
+          <h2 className="bt-h2">{purchase?.checkoutUrl ? t("confirm_stripe_title") : t("confirm_mock_title")}</h2>
           {purchase ? (
             <>
               <div className="bt-grid">
                 <div>
-                  <div className="bt-label">Produto</div>
-                  <div className="bt-mono">Acesso 1 dia</div>
+                  <div className="bt-label">{t("product_label")}</div>
+                  <div className="bt-mono">{t("product_day_pass")}</div>
                 </div>
                 <div>
-                  <div className="bt-label">Preço</div>
-                  <div className="bt-mono">
-                    {(purchase.amountCents / 100).toFixed(2)} {purchase.currency}
-                  </div>
+                  <div className="bt-label">{t("price_label")}</div>
+                  <div className="bt-mono">{formatPrice(purchase.amountCents, purchase.currency, locale)}</div>
                 </div>
                 <div>
-                  <div className="bt-label">Validade</div>
+                  <div className="bt-label">{t("validity_label")}</div>
                   <div className="bt-mono">{purchase.validityHours}h</div>
                 </div>
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="primary" onClick={onBuyConfirm} disabled={busy !== null}>
-                  {purchase.checkoutUrl ? "Ir para pagamento" : "Confirmar"}
+                  {purchase.checkoutUrl ? t("go_to_payment") : t("confirm")}
                 </Button>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <EmptyState message="Sem compra iniciada. Volta e clica em “Comprar acesso 1 dia”." />
+              <EmptyState message={t("empty_purchase", { cta: t("buy_access_one_day") })} />
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
@@ -751,7 +1049,7 @@ export function App() {
 
       {page === "b3_stripe" ? (
         <section className="bt-card">
-          <h2 className="bt-h2">Estado do pagamento</h2>
+          <h2 className="bt-h2">{t("payment_status_title")}</h2>
           {stripeSessionId ? (
             <>
               <div className="bt-row" style={{ marginTop: 10 }}>
@@ -763,27 +1061,27 @@ export function App() {
                         ? "danger"
                         : "neutral"
                   }
-                  text={stripeStatus?.status ?? "pending"}
+                  text={statusLabel(language, stripeStatus?.status ?? "pending")}
                 />
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
-                {stripePolling ? "A atualizar..." : null}
+                {stripePolling ? t("updating") : null}
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={() => fetchStripeStatus(true)} disabled={busy !== null}>
-                  Atualizar
+                  {t("refresh")}
                 </Button>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <EmptyState message="Sessao em falta. Volta ao inicio e inicia a compra." />
+              <EmptyState message={t("empty_stripe_session")} />
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
             </>
@@ -793,12 +1091,14 @@ export function App() {
 
       {page === "b3_code" ? (
         <section className="bt-card">
-          <h2 className="bt-h2">Código emitido</h2>
+          <h2 className="bt-h2">{t("issued_code_title")}</h2>
           {issued ? (
             <>
               <div className="bt-row" style={{ justifyContent: "space-between" }}>
-                <div className="bt-mono">Código: {revealIssuedCode ? fullIssued : maskedIssued}</div>
-                <StatusBadge tone="success" text="ISSUED" />
+                <div className="bt-mono">
+                  {t("code_label")}: {revealIssuedCode ? fullIssued : maskedIssued}
+                </div>
+                <StatusBadge tone="success" text={statusLabel(language, "issued")} />
               </div>
               <div className="bt-row" style={{ marginTop: 10 }}>
                 <Button
@@ -806,31 +1106,30 @@ export function App() {
                   onClick={() => setRevealIssuedCode((v) => !v)}
                   disabled={busy !== null || !issued}
                 >
-                  {revealIssuedCode ? "Mascarar" : "Desmascarar"}
+                  {revealIssuedCode ? t("mask") : t("unmask")}
                 </Button>
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
-                Válido até: {formatDateTime(issued.validUntil)}
+                {t("valid_until_text", { date: formatDateTime(issued.validUntil, locale) })}
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
-                Aviso: este codigo fica guardado neste dispositivo.
+                {t("issued_notice")}
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
               {savedCodesView}
             </>
           ) : (
             <>
-              <EmptyState message="Sem código. Faz a confirmação na cloud." />
+              <EmptyState message={t("empty_code")} />
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
-                  Voltar
+                  {t("back")}
                 </Button>
               </div>
-              
             </>
           )}
         </section>

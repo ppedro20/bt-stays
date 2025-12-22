@@ -131,34 +131,19 @@ npm run build
 npm run preview:user
 ```
 
-## 11) PWA validation (local)
-
-- Open Chrome DevTools > Application.
-- Verify Manifest, Service Worker, and offline fallback.
-
-## 12) Deploy user-web (Vercel)
+## 11) Deploy user-web (Vercel)
 
 - Set project root to `apps/user-web`.
 - `vercel.json` provides SPA rewrite and cache headers.
 - Ensure HTTPS is enabled.
 
-## 13) Post-deploy checks
+## 12) Deploy admin-web (Vercel)
 
-- Installable PWA on Android/desktop.
-- iOS Add to Home Screen shows icon.
-- Offline fallback works.
-- Update prompt appears on new build.
-- Lighthouse PWA score >= 90.
+- Set project root to `apps/admin-web`.
+- Use `vercel.json` for SPA rewrite and cache headers.
+- Ensure HTTPS is enabled.
 
-## 14) Push test (optional)
-
-Call `push_send` with admin secret:
-
-```bash
-curl -X POST https://<project_ref>.supabase.co/functions/v1/push_send   -H "x-admin-secret: <PUSH_ADMIN_SECRET>"   -H "Content-Type: application/json"   -d '{"title":"bt-stays","body":"Teste","url":"/"}'
-```
-
-## 15) Native wrappers (Capacitor)
+## 13) Native wrappers (Capacitor)
 
 From `apps/user-web`:
 
