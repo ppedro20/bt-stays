@@ -126,6 +126,7 @@ npm run dev:admin
 ## 10) Build + preview locally
 
 ```bash
+npx tsc -b
 npm run build
 npm run preview:user
 ```

@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "composite": true,
     "target": "ES2022",
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
@@ -7,6 +8,7 @@
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/admin-web.tsbuildinfo",
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
@@ -14,4 +16,3 @@
   },
   "include": ["src"]
 }
-
