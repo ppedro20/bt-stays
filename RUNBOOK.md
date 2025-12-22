@@ -156,3 +156,25 @@ Call `push_send` with admin secret:
 ```bash
 curl -X POST https://<project_ref>.supabase.co/functions/v1/push_send   -H "x-admin-secret: <PUSH_ADMIN_SECRET>"   -H "Content-Type: application/json"   -d '{"title":"bt-stays","body":"Teste","url":"/"}'
 ```
+
+## 15) Native wrappers (Capacitor)
+
+From `apps/user-web`:
+
+```bash
+npm run build
+npx cap add android
+npx cap add ios
+npx cap sync
+```
+
+Open native projects:
+
+```bash
+npx cap open android
+npx cap open ios
+```
+
+Notes:
+- Update `apps/user-web/capacitor.config.ts` with your final `appId`.
+- Android requires Android Studio; iOS requires Xcode on macOS.
