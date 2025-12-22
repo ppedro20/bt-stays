@@ -3,7 +3,7 @@ import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 import { rateLimit } from "../_shared/rateLimit.ts";
 import { logError, logInfo } from "../_shared/log.ts";
 
-type Body = { product_code?: string };
+type Body = { product_code?: string; client_token?: string };
 
 function getClientIp(req: Request): string {
   const cf = req.headers.get("cf-connecting-ip");
@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabaseAdmin.rpc("create_payment", {
       p_product_code: body.product_code ?? "day_pass",
+      p_payment_token: body.client_token ?? null,
     });
 
     if (error) {

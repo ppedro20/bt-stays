@@ -1,34 +1,42 @@
 # Runbook (dev + deploy)
 
-## Monorepo structure (non-optional)
-
-- `apps/user-web` - public user app (no login)
-- `apps/admin-web` - admin app (Supabase Auth + RBAC)
-- `supabase` - migrations + Edge Functions
-- `packages/shared` - shared helpers/types (no business logic)
-
-Conventions:
-
-- UUID everywhere
-- UTC timestamps in DB (`timestamptz`)
-- ISO 8601 dates over the wire
-- JSON structured logs (Edge Functions)
+This is the step-by-step guide to run the project locally and deploy.
 
 ## Prereqs
 
 - Node.js 20+
 - Supabase CLI
-- Stripe account (test mode)
+- Stripe account (test mode) if using Stripe
 
-## 1) Supabase project (local + remote)
+## 1) Clone and install dependencies
 
-Local dev:
+From repo root:
+
+```bash
+npm install
+```
+
+## 2) Start Supabase locally
 
 ```bash
 npx supabase start
 ```
 
-Remote project (once):
+## 3) Apply database migrations
+
+Local reset (fresh DB):
+
+```bash
+npx supabase db reset
+```
+
+Remote project (after linking):
+
+```bash
+npx supabase db push
+```
+
+## 4) Link a remote Supabase project (once)
 
 ```bash
 npx supabase login
@@ -41,23 +49,42 @@ Enable in Supabase:
 - Auth (Email/Password)
 - Edge Functions
 
-## 2) Database migrations
+## 5) Supabase Edge Functions env
 
-Apply all files in `supabase/migrations/` in order.
+Create `supabase/.env` from `supabase/.env.example`.
 
-Local:
+Required:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Payments:
+
+- `PAYMENTS_PROVIDER=mock` (default) or `stripe`
+- `PAYMENTS_DAY_PASS_AMOUNT_CENTS`
+- `PAYMENTS_CURRENCY` (default `EUR`)
+
+Stripe (if real):
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_SUCCESS_URL` (example: `https://<user-web>/#/b3/stripe?session_id={CHECKOUT_SESSION_ID}`)
+- `STRIPE_CANCEL_URL` (example: `https://<user-web>/#/b1`)
+
+PWA advanced:
+
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT`
+- `PUSH_ADMIN_SECRET`
+
+## 6) Deploy Supabase Edge Functions
 
 ```bash
-npx supabase db reset
+npx supabase functions deploy
 ```
 
-Remote:
-
-```bash
-npx supabase db push
-```
-
-## 3) Seed superadmin (manual)
+## 7) Seed superadmin (manual)
 
 1. Create a user in Supabase Auth (email/password).
 2. Copy the Auth user UUID.
@@ -69,76 +96,7 @@ values ('<AUTH_USER_UUID>', 'superadmin', true)
 on conflict (user_id) do update set role = excluded.role, active = excluded.active;
 ```
 
-## 4) Edge Functions env (required)
-
-Create `supabase/.env` from `supabase/.env.example`.
-
-Required:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Mock vs Stripe:
-
-- `PAYMENTS_PROVIDER=mock` (default)
-- `PAYMENTS_PROVIDER=stripe` (real)
-
-Stripe (if real):
-
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_SUCCESS_URL` (example: `https://<user-web>/#/b3/stripe?session_id={CHECKOUT_SESSION_ID}`)
-- `STRIPE_CANCEL_URL` (example: `https://<user-web>/#/b1`)
-- `PAYMENTS_DAY_PASS_AMOUNT_CENTS`
-- `PAYMENTS_CURRENCY` (default `EUR`)
-
-## 5) Deploy Edge Functions
-
-Deploy all folders under `supabase/functions/`:
-
-```bash
-npx supabase functions deploy
-```
-
-Key functions:
-
-- `start_purchase` - creates payment + Stripe Checkout session (or mock)
-- `payment_webhook` - Stripe signature validation + payment confirmation
-- `payment_status` - user polling
-- `confirm_purchase` - mock only (disabled when provider=stripe)
-- Admin functions: `admin_*`
-
-Notes:
-
-- Stripe live path uses `STRIPE_WEBHOOK_SECRET` (Stripe signature).
-- Legacy mock webhook uses `PAYMENT_WEBHOOK_SECRET` + `x-webhook-secret` header.
-
-## 6) Stripe sandbox setup (once)
-
-Stripe Dashboard (test mode):
-
-- Enable payment method: Card
-- Create product: "Acesso 1 dia"
-- Create fixed price in your business currency
-- Save:
-  - `STRIPE_SECRET_KEY`
-  - `STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
-
-Webhook endpoint:
-
-```
-https://<project_ref>.supabase.co/functions/v1/payment_webhook
-```
-
-Events to send:
-
-- `checkout.session.completed`
-- `payment_intent.succeeded`
-- `payment_intent.payment_failed`
-- `payment_intent.canceled`
-
-## 7) App envs
+## 8) App envs
 
 Create env files from examples:
 
@@ -149,13 +107,13 @@ Vars:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 
-## 8) Run locally
+## 9) Run apps locally
 
-At repo root:
+From repo root:
 
 ```bash
-npm install
 npm run dev:user
 ```
 
@@ -165,53 +123,36 @@ In another terminal:
 npm run dev:admin
 ```
 
-## 9) Payment model (mental model)
+## 10) Build + preview locally
 
-- Pagamento = evento externo (Stripe/webhook).
-- Codigo de acesso = ativo interno.
-- Regra central: um codigo so transita para `active` apos evento Stripe validado no webhook.
+```bash
+npm run build
+npm run preview:user
+```
 
-Payment states (Postgres):
+## 11) PWA validation (local)
 
-- `created` - intencao criada
-- `pending` - utilizador redirecionado / pagamento em curso
-- `paid` - confirmado por webhook
-- `failed` - falha definitiva
-- `expired` - intent abandonado
-- `refunded` - opcional pos-MVP
+- Open Chrome DevTools > Application.
+- Verify Manifest, Service Worker, and offline fallback.
 
-Regra:
+## 12) Deploy user-web (Vercel)
 
-- Nenhum frontend pode escrever `paid`.
+- Set project root to `apps/user-web`.
+- `vercel.json` provides SPA rewrite and cache headers.
+- Ensure HTTPS is enabled.
 
-## 10) Admin dashboard (payments)
+## 13) Post-deploy checks
 
-Minimo:
+- Installable PWA on Android/desktop.
+- iOS Add to Home Screen shows icon.
+- Offline fallback works.
+- Update prompt appears on new build.
+- Lighthouse PWA score >= 90.
 
-- Listar pagamentos
-- Filtrar por estado
-- Ver ligacao pagamento <-> codigo
-- Ver eventos Stripe associados
-- Export CSV
+## 14) Push test (optional)
 
-Admins nao confirmam pagamentos manualmente.
+Call `push_send` with admin secret:
 
-## 11) Observability / exports
-
-Dashboard exports CSV via Edge Functions:
-
-- `admin_export_codes`
-- `admin_export_payments`
-- `admin_export_events`
-
-Edge Functions emit JSON structured logs and include `x-request-id` on export responses.
-
-## 12) MVP acceptance checklist
-
-- Compra cria pagamento `pending`.
-- Webhook muda para `paid`.
-- Codigo e criado apenas apos webhook.
-- Codigo expira automaticamente.
-- Admin ve tudo.
-- CSV export funciona.
-- Mock e Stripe coexistem.
+```bash
+curl -X POST https://<project_ref>.supabase.co/functions/v1/push_send   -H "x-admin-secret: <PUSH_ADMIN_SECRET>"   -H "Content-Type: application/json"   -d '{"title":"bt-stays","body":"Teste","url":"/"}'
+```

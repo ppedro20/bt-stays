@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import type { CheckAccessStatusResponse, CreatePurchaseResponse, DemoPayResponse, PaymentStatusResponse } from "./types";
-import { BlockingLoading, Button, EmptyState, ErrorState, InputCode6, StatusBadge } from "@bt/shared/ui";
+import { BlockingLoading, Button, EmptyState, ErrorState, InputCode6, StatusBadge, useToast } from "@bt/shared/ui";
+import { PwaNotifications } from "./PwaNotifications";
 
 function formatDateTime(iso: string | null) {
   if (!iso) return "-";
@@ -74,7 +75,40 @@ type PaymentStatus = {
   validUntil: string | null;
 };
 
+type PendingPurchase = {
+  token: string;
+  productCode: string;
+  createdAt: string;
+};
+
+const PENDING_PURCHASE_KEY = "bt_pending_purchase";
+
+function readPendingPurchase(): PendingPurchase | null {
+  try {
+    const raw = localStorage.getItem(PENDING_PURCHASE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PendingPurchase;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingPurchase(pending: PendingPurchase | null) {
+  if (!pending) {
+    localStorage.removeItem(PENDING_PURCHASE_KEY);
+    return;
+  }
+  localStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(pending));
+}
+
+function makeClientToken() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function App() {
+  const { push } = useToast();
   const [code, setCode] = useState<string>("");
   const [decision, setDecision] = useState<Decision | null>(null);
   const [revealDecisionCode, setRevealDecisionCode] = useState<boolean>(false);
@@ -89,6 +123,59 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>(() => parseHashRoute().page ?? "b1");
   const [busy, setBusy] = useState<string | null>(null);
+  const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(() => readPendingPurchase());
+  const [retryAction, setRetryAction] = useState<"validate" | "start_purchase" | "confirm_purchase" | "payment_status" | null>(
+    null,
+  );
+
+  function requireOnline(action: typeof retryAction, message: string) {
+    if (navigator.onLine) return true;
+    setError(message);
+    setRetryAction(action);
+    return false;
+  }
+
+  async function startPurchase(clientToken: string, source: "manual" | "resume") {
+    setBusy("start_purchase");
+    setError(null);
+    setRetryAction(null);
+    setPurchase(null);
+    setIssued(null);
+    setStripeStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke<CreatePurchaseResponse>("start_purchase", {
+        body: { product_code: "day_pass", client_token: clientToken },
+      });
+      if (error) throw error;
+      if (!data?.purchase) throw new Error("Resposta invÇ­lida do servidor");
+
+      writePendingPurchase(null);
+      setPendingPurchase(null);
+
+      setPurchase({
+        id: data.purchase.purchase_id,
+        token: data.purchase.purchase_token,
+        amountCents: data.purchase.amount_cents,
+        currency: data.purchase.currency,
+        validityHours: data.purchase.validity_hours,
+        checkoutUrl: data.purchase.checkout_url ?? null,
+        provider: data.purchase.provider ?? null,
+      });
+      setPage("b3_confirm");
+      go("b3_confirm");
+    } catch (e) {
+      setError(normalizeErrorMessage(e));
+      if (!navigator.onLine && source === "manual") {
+        const pending = { token: clientToken, productCode: "day_pass", createdAt: new Date().toISOString() };
+        writePendingPurchase(pending);
+        setPendingPurchase(pending);
+      } else {
+        setRetryAction("start_purchase");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
 
   useEffect(() => {
     const onHash = () => {
@@ -109,8 +196,10 @@ export function App() {
   }, []);
 
   async function onValidate() {
+    if (!requireOnline("validate", "Requer ligacao a internet para validar o codigo.")) return;
     setBusy("check_access_status");
     setError(null);
+    setRetryAction(null);
     try {
       const { data, error } = await supabase.functions.invoke<CheckAccessStatusResponse>("check_access_status", {
         body: { code },
@@ -153,44 +242,37 @@ export function App() {
   }
 
   async function onBuyStart() {
-    setBusy("start_purchase");
-    setError(null);
-    setPurchase(null);
-    setIssued(null);
-    setStripeStatus(null);
-    try {
-      const { data, error } = await supabase.functions.invoke<CreatePurchaseResponse>("start_purchase", {
-        body: { product_code: "day_pass" },
-      });
-      if (error) throw error;
-      if (!data?.purchase) throw new Error("Resposta inválida do servidor");
-
-      setPurchase({
-        id: data.purchase.purchase_id,
-        token: data.purchase.purchase_token,
-        amountCents: data.purchase.amount_cents,
-        currency: data.purchase.currency,
-        validityHours: data.purchase.validity_hours,
-        checkoutUrl: data.purchase.checkout_url ?? null,
-        provider: data.purchase.provider ?? null,
-      });
-      setPage("b3_confirm");
-      go("b3_confirm");
-    } catch (e) {
-      setError(normalizeErrorMessage(e));
-    } finally {
-      setBusy(null);
+    setRetryAction(null);
+    if (!navigator.onLine) {
+      if (pendingPurchase) {
+        setError("Compra pendente. Assim que tiveres ligacao, continuamos.");
+      } else {
+        const pending = { token: makeClientToken(), productCode: "day_pass", createdAt: new Date().toISOString() };
+        writePendingPurchase(pending);
+        setPendingPurchase(pending);
+        setError("Sem ligacao. A compra foi colocada em fila.");
+        push({ title: "Compra pendente", message: "Vamos tentar assim que estiveres online." });
+      }
+      return;
     }
+    if (pendingPurchase) {
+      await startPurchase(pendingPurchase.token, "resume");
+      return;
+    }
+    await startPurchase(makeClientToken(), "manual");
   }
 
   async function onBuyConfirm() {
     if (!purchase) return;
     if (purchase.checkoutUrl) {
+      if (!requireOnline("confirm_purchase", "Requer ligacao a internet para continuar o pagamento.")) return;
       window.location.href = purchase.checkoutUrl;
       return;
     }
+    if (!requireOnline("confirm_purchase", "Requer ligacao a internet para confirmar a compra.")) return;
     setBusy("confirm_purchase");
     setError(null);
+    setRetryAction(null);
     try {
       const { data, error } = await supabase.functions.invoke<DemoPayResponse>("confirm_purchase", {
         body: { purchase_token: purchase.token },
@@ -222,9 +304,17 @@ export function App() {
   }
 
   async function fetchStripeStatus(manual = false): Promise<PaymentStatus | null> {
+    if (!navigator.onLine) {
+      if (manual) {
+        setError("Requer ligacao a internet para atualizar o estado do pagamento.");
+        setRetryAction("payment_status");
+      }
+      return null;
+    }
     if (!stripeSessionId) return null;
     if (manual) setBusy("payment_status");
     setError(null);
+    if (manual) setRetryAction(null);
     try {
       const { data, error } = await supabase.functions.invoke<PaymentStatusResponse>("payment_status", {
         body: { provider_payment_id: stripeSessionId },
@@ -280,6 +370,23 @@ export function App() {
     };
   }, [page, stripeSessionId]);
 
+  useEffect(() => {
+    if (!pendingPurchase || busy) return;
+    if (retryAction === "start_purchase") return;
+    if (!navigator.onLine) return;
+    startPurchase(pendingPurchase.token, "resume");
+  }, [pendingPurchase, busy, retryAction]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      if (pendingPurchase && !busy && retryAction !== "start_purchase") {
+        startPurchase(pendingPurchase.token, "resume");
+      }
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [pendingPurchase, busy, retryAction]);
+
   const maskedIssued = issued ? `***${issued.code.slice(-3)}` : null;
   const fullIssued = issued?.code ?? null;
   const maskedDecision = code ? `***${code.slice(-3)}` : "***";
@@ -291,12 +398,42 @@ export function App() {
         <div>
           <h1 className="bt-h1">Validar acesso</h1>
         </div>
+        <PwaNotifications />
       </header>
 
-      {error ? <ErrorState message={error} /> : null}
+      {error ? (
+        <div>
+          <ErrorState message={error} />
+          {retryAction ? (
+            <div className="bt-row" style={{ marginTop: 12 }}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  if (retryAction === "validate") onValidate();
+                  else if (retryAction === "start_purchase") {
+                    if (pendingPurchase) startPurchase(pendingPurchase.token, "resume");
+                    else onBuyStart();
+                  }
+                  else if (retryAction === "confirm_purchase") onBuyConfirm();
+                  else if (retryAction === "payment_status") fetchStripeStatus(true);
+                }}
+                disabled={busy !== null}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {page === "b1" ? (
         <section className="bt-card">
+          {pendingPurchase ? (
+            <div className="bt-row" style={{ marginBottom: 10 }}>
+              <StatusBadge tone="neutral" text="COMPRA PENDENTE" />
+              <div className="bt-mono">Sera retomada quando a ligacao voltar.</div>
+            </div>
+          ) : null}
           <div className="bt-row">
             <InputCode6 value={code} onChange={setCode} aria-label="Código de acesso" />
             <Button variant="primary" onClick={onValidate} disabled={busy !== null}>

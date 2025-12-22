@@ -734,7 +734,13 @@ export function App() {
                             eventos
                           </button>
                           {p.access_code_id ? (
-                            <button onClick={() => loadCodeDetail(p.access_code_id)} disabled={busy !== null} className="link">
+                            <button
+                              onClick={() => {
+                                if (p.access_code_id) loadCodeDetail(p.access_code_id);
+                              }}
+                              disabled={busy !== null}
+                              className="link"
+                            >
                               codigo
                             </button>
                           ) : null}

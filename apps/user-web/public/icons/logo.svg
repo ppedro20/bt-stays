@@ -1,0 +1,7 @@
+﻿<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\">
+  <rect width=\"512\" height=\"512\" rx=\"92\" fill=\"#F5F3EE\" />
+  <rect x=\"48\" y=\"48\" width=\"416\" height=\"416\" rx=\"90\" fill=\"#0F3D2E\" />
+  <rect x=\"48\" y=\"408\" width=\"416\" height=\"40\" rx=\"20\" fill=\"#D9A441\" />
+  <text x=\"256\" y=\"265\" text-anchor=\"middle\" font-size=\"200\" font-family=\"Arial, sans-serif\" fill=\"#F5F3EE\" font-weight=\"700\">BT</text>
+  <text x=\"256\" y=\"340\" text-anchor=\"middle\" font-size=\"48\" font-family=\"Arial, sans-serif\" fill=\"#F5F3EE\">bt-stays</text>
+</svg>

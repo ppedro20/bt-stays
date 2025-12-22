@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/storage.ts","./src/supabase.ts","./src/types.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/offlineindicator.tsx","./src/pwainstalltracker.tsx","./src/pwanotifications.tsx","./src/pwaupdateprompt.tsx","./src/main.tsx","./src/supabase.ts","./src/sw.ts","./src/types.ts","./src/vite-env.d.ts","./src/pwa/analytics.ts","./src/pwa/device.ts","./src/pwa/push.ts"],"version":"5.9.3"}
