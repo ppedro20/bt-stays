@@ -68,6 +68,12 @@ type IssuedCode = {
   purchaseId: string;
 };
 
+type SavedCode = {
+  code: string;
+  validUntil: string;
+  purchaseId: string;
+};
+
 type PaymentStatus = {
   status: string;
   purchaseId: string;
@@ -82,6 +88,8 @@ type PendingPurchase = {
 };
 
 const PENDING_PURCHASE_KEY = "bt_pending_purchase";
+const SAVED_CODES_KEY = "bt_saved_codes";
+const PURCHASE_HISTORY_KEY = "bt_purchase_history";
 
 function readPendingPurchase(): PendingPurchase | null {
   try {
@@ -99,6 +107,90 @@ function writePendingPurchase(pending: PendingPurchase | null) {
     return;
   }
   localStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(pending));
+}
+
+function readSavedCodes(): SavedCode[] {
+  try {
+    const raw = localStorage.getItem(SAVED_CODES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.code === "string" &&
+        typeof item.validUntil === "string" &&
+        typeof item.purchaseId === "string",
+    ) as SavedCode[];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedCodes(codes: SavedCode[]) {
+  try {
+    localStorage.setItem(SAVED_CODES_KEY, JSON.stringify(codes));
+  } catch {
+    // Ignore write errors (storage full or unavailable).
+  }
+}
+
+function upsertSavedCode(existing: SavedCode[], next: SavedCode): SavedCode[] {
+  const filtered = existing.filter((item) => item.purchaseId !== next.purchaseId && item.code !== next.code);
+  return [next, ...filtered].slice(0, 10);
+}
+
+type PurchaseHistoryItem = {
+  purchaseId: string;
+  status: string;
+  amountCents: number | null;
+  currency: string | null;
+  provider: string | null;
+  createdAt: string;
+  updatedAt: string;
+  accessCodeLast3: string | null;
+  validUntil: string | null;
+};
+
+function readPurchaseHistory(): PurchaseHistoryItem[] {
+  try {
+    const raw = localStorage.getItem(PURCHASE_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.purchaseId === "string" &&
+        typeof item.status === "string" &&
+        typeof item.createdAt === "string" &&
+        typeof item.updatedAt === "string",
+    ) as PurchaseHistoryItem[];
+  } catch {
+    return [];
+  }
+}
+
+function writePurchaseHistory(items: PurchaseHistoryItem[]) {
+  try {
+    localStorage.setItem(PURCHASE_HISTORY_KEY, JSON.stringify(items));
+  } catch {
+    // Ignore write errors (storage full or unavailable).
+  }
+}
+
+function upsertPurchaseHistory(existing: PurchaseHistoryItem[], next: PurchaseHistoryItem): PurchaseHistoryItem[] {
+  const idx = existing.findIndex((item) => item.purchaseId === next.purchaseId);
+  if (idx === -1) return [next, ...existing].slice(0, 10);
+  const current = existing[idx];
+  const merged: PurchaseHistoryItem = {
+    ...current,
+    ...next,
+    createdAt: current.createdAt,
+  };
+  const copy = [...existing];
+  copy[idx] = merged;
+  return copy;
 }
 
 function makeClientToken() {
@@ -119,6 +211,8 @@ export function App() {
   const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
   const [stripeStatus, setStripeStatus] = useState<PaymentStatus | null>(null);
   const [stripePolling, setStripePolling] = useState<boolean>(false);
+  const [savedCodes, setSavedCodes] = useState<SavedCode[]>(() => readSavedCodes());
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryItem[]>(() => readPurchaseHistory());
 
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>(() => parseHashRoute().page ?? "b1");
@@ -133,6 +227,27 @@ export function App() {
     setError(message);
     setRetryAction(action);
     return false;
+  }
+
+  function rememberCode(next: SavedCode) {
+    setSavedCodes((prev) => {
+      const updated = upsertSavedCode(prev, next);
+      writeSavedCodes(updated);
+      return updated;
+    });
+  }
+
+  function rememberPurchase(next: PurchaseHistoryItem) {
+    setPurchaseHistory((prev) => {
+      const updated = upsertPurchaseHistory(prev, next);
+      writePurchaseHistory(updated);
+      return updated;
+    });
+  }
+
+  function rememberIssued(next: IssuedCode) {
+    setIssued(next);
+    rememberCode(next);
   }
 
   async function startPurchase(clientToken: string, source: "manual" | "resume") {
@@ -160,6 +275,18 @@ export function App() {
         validityHours: data.purchase.validity_hours,
         checkoutUrl: data.purchase.checkout_url ?? null,
         provider: data.purchase.provider ?? null,
+      });
+      const now = new Date().toISOString();
+      rememberPurchase({
+        purchaseId: data.purchase.purchase_id,
+        status: "created",
+        amountCents: data.purchase.amount_cents,
+        currency: data.purchase.currency,
+        provider: data.purchase.provider ?? null,
+        createdAt: now,
+        updatedAt: now,
+        accessCodeLast3: null,
+        validUntil: null,
       });
       setPage("b3_confirm");
       go("b3_confirm");
@@ -216,6 +343,14 @@ export function App() {
             : status.state === "issued" && status.can_access
               ? ("VALID" as const)
               : ("NOT_FOUND" as const);
+
+      if (status.valid_until && /^[0-9]{6}$/.test(code) && mappedState !== "NOT_FOUND") {
+        rememberCode({
+          code,
+          validUntil: status.valid_until,
+          purchaseId: `manual:${code}`,
+        });
+      }
 
       setDecision({
         codeLast3: code.slice(-3),
@@ -282,7 +417,23 @@ export function App() {
         throw new Error("Resposta inválida do servidor");
       }
 
-      setIssued({ code: data.result.access_code, validUntil: data.result.valid_until, purchaseId: data.result.purchase_id });
+      rememberIssued({
+        code: data.result.access_code,
+        validUntil: data.result.valid_until,
+        purchaseId: data.result.purchase_id,
+      });
+      const now = new Date().toISOString();
+      rememberPurchase({
+        purchaseId: data.result.purchase_id,
+        status: "paid",
+        amountCents: purchase?.amountCents ?? null,
+        currency: purchase?.currency ?? null,
+        provider: purchase?.provider ?? "mock",
+        createdAt: now,
+        updatedAt: now,
+        accessCodeLast3: data.result.access_code.slice(-3),
+        validUntil: data.result.valid_until,
+      });
       setPage("b3_code");
       go("b3_code");
     } catch (e) {
@@ -329,9 +480,21 @@ export function App() {
         validUntil: data.payment.valid_until,
       };
       setStripeStatus(status);
+      const now = new Date().toISOString();
+      rememberPurchase({
+        purchaseId: status.purchaseId,
+        status: status.status,
+        amountCents: purchase?.amountCents ?? null,
+        currency: purchase?.currency ?? null,
+        provider: "stripe",
+        createdAt: now,
+        updatedAt: now,
+        accessCodeLast3: status.accessCode ? status.accessCode.slice(-3) : null,
+        validUntil: status.validUntil ?? null,
+      });
 
       if (status.status === "paid" && status.accessCode) {
-        setIssued({
+        rememberIssued({
           code: status.accessCode,
           validUntil: status.validUntil ?? "",
           purchaseId: status.purchaseId,
@@ -390,6 +553,56 @@ export function App() {
   const maskedIssued = issued ? `***${issued.code.slice(-3)}` : null;
   const fullIssued = issued?.code ?? null;
   const maskedDecision = code ? `***${code.slice(-3)}` : "***";
+  const savedList = savedCodes;
+  const savedCodesView = savedList.length ? (
+    <section className="bt-card" style={{ marginTop: 12 }}>
+      <h2 className="bt-h2">Meus codigos</h2>
+      {savedList.map((item) => {
+        const status = item.validUntil && new Date(item.validUntil).getTime() > Date.now() ? "ACTIVE" : "EXPIRED";
+        return (
+          <div
+            key={`${item.purchaseId}-${item.code}`}
+            className="bt-row"
+            style={{ justifyContent: "space-between", alignItems: "center", marginTop: 10 }}
+          >
+            <div className="bt-mono">Codigo: {item.code}</div>
+            <div className="bt-mono">Valido ate: {formatDateTime(item.validUntil)}</div>
+            <StatusBadge tone={status === "ACTIVE" ? "success" : "danger"} text={status} />
+          </div>
+        );
+      })}
+    </section>
+  ) : null;
+  const purchaseHistoryView = purchaseHistory.length ? (
+    <section className="bt-card" style={{ marginTop: 12 }}>
+      <h2 className="bt-h2">Historico de compras</h2>
+      {purchaseHistory.map((item) => {
+        const status = item.status.toUpperCase();
+        const tone =
+          status === "PAID"
+            ? "success"
+            : status === "FAILED" || status === "EXPIRED" || status === "REFUNDED" || status === "CANCELED"
+              ? "danger"
+              : "neutral";
+        const price =
+          item.amountCents !== null && item.currency
+            ? `${(item.amountCents / 100).toFixed(2)} ${item.currency}`
+            : "-";
+        return (
+          <div
+            key={item.purchaseId}
+            className="bt-row"
+            style={{ justifyContent: "space-between", alignItems: "center", marginTop: 10 }}
+          >
+            <div className="bt-mono">ID: {item.purchaseId.slice(-6)}</div>
+            <div className="bt-mono">Total: {price}</div>
+            <div className="bt-mono">Atualizado: {formatDateTime(item.updatedAt)}</div>
+            <StatusBadge tone={tone} text={status} />
+          </div>
+        );
+      })}
+    </section>
+  ) : null;
 
   return (
     <div className="bt-container">
@@ -427,27 +640,30 @@ export function App() {
       ) : null}
 
       {page === "b1" ? (
-        <section className="bt-card">
-          {pendingPurchase ? (
-            <div className="bt-row" style={{ marginBottom: 10 }}>
-              <StatusBadge tone="neutral" text="COMPRA PENDENTE" />
-              <div className="bt-mono">Sera retomada quando a ligacao voltar.</div>
+        <>
+          <section className="bt-card">
+            {pendingPurchase ? (
+              <div className="bt-row" style={{ marginBottom: 10 }}>
+                <StatusBadge tone="neutral" text="COMPRA PENDENTE" />
+                <div className="bt-mono">Sera retomada quando a ligacao voltar.</div>
+              </div>
+            ) : null}
+            <div className="bt-row">
+              <InputCode6 value={code} onChange={setCode} aria-label="Codigo de acesso" />
+              <Button variant="primary" onClick={onValidate} disabled={busy !== null}>
+                Validar
+              </Button>
             </div>
-          ) : null}
-          <div className="bt-row">
-            <InputCode6 value={code} onChange={setCode} aria-label="Código de acesso" />
-            <Button variant="primary" onClick={onValidate} disabled={busy !== null}>
-              Validar
-            </Button>
-          </div>
 
-          <div className="bt-row" style={{ marginTop: 12 }}>
-            <Button variant="ghost" onClick={onBuyStart} disabled={busy !== null}>
-              Comprar acesso 1 dia
-            </Button>
-          </div>
-
-        </section>
+            <div className="bt-row" style={{ marginTop: 12 }}>
+              <Button variant="ghost" onClick={onBuyStart} disabled={busy !== null}>
+                Comprar acesso 1 dia
+              </Button>
+            </div>
+          </section>
+          {purchaseHistoryView}
+          {savedCodesView}
+        </>
       ) : null}
 
       {page === "b2" ? (
@@ -597,13 +813,14 @@ export function App() {
                 Válido até: {formatDateTime(issued.validUntil)}
               </div>
               <div className="bt-mono" style={{ marginTop: 10 }}>
-                Aviso: este código é apresentado uma única vez. Anota já.
+                Aviso: este codigo fica guardado neste dispositivo.
               </div>
               <div className="bt-row" style={{ marginTop: 12 }}>
                 <Button variant="ghost" onClick={onBuyClose} disabled={busy !== null}>
                   Voltar
                 </Button>
               </div>
+              {savedCodesView}
             </>
           ) : (
             <>
@@ -613,6 +830,7 @@ export function App() {
                   Voltar
                 </Button>
               </div>
+              
             </>
           )}
         </section>
