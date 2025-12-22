@@ -1,6 +1,6 @@
 ## bt-stays-supabase
 #### USER: https://bt-stays-user-web.vercel.app/
-#### ADMIN: https://bt-stays-user-web.vercel.app 
+#### ADMIN: https://bt-stays-admin-web.vercel.app 
 
 ### Structure
 - `apps/user-web` - public PWA
