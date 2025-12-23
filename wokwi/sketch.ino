@@ -7,12 +7,11 @@
 #include "wokwi_env.h"
 #endif
 
-// Configure via build flags or a local header (wokwi_env.h).
 #ifndef WOKWI_SUPABASE_URL
-#define WOKWI_SUPABASE_URL "https://YOUR_PROJECT.supabase.co/functions/v1/device_consume_code"
+#error "WOKWI_SUPABASE_URL not defined. Create wokwi_env.h from the example."
 #endif
 #ifndef WOKWI_DEVICE_SECRET
-#define WOKWI_DEVICE_SECRET "YOUR_DEVICE_SECRET"
+#error "WOKWI_DEVICE_SECRET not defined. Create wokwi_env.h from the example."
 #endif
 
 // Wokwi WiFi

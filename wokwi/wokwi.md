@@ -2,6 +2,14 @@
 
 Guiao modular para integrar o projeto atual com um dispositivo simulado no Wokwi. Este guiao descreve apenas instrucoes (sem codigo).
 
+## Cenario Wokwi
+
+- A app-user emite um codigo no Supabase (fluxo de compra).
+- O ESP32 (Wokwi) recebe o codigo via keypad e envia para a Edge Function `device_consume_code`.
+- O Supabase valida o codigo e devolve o estado (`granted`/`reason`).
+- O LCD mostra o resultado e, se valido, simula "abrir portao".
+- Nao existe ligacao direta app-user -> Wokwi; a ponte e sempre o Supabase.
+
 ## Modulo 0 - Objetivo e fluxo
 
 - Definir o fluxo: keypad recebe codigo, ESP32 valida via Supabase, LCD mostra estado; se valido, regista "abrir portao".
@@ -62,3 +70,27 @@ Guiao modular para integrar o projeto atual com um dispositivo simulado no Wokwi
 - Documentar a URL da function e o segredo.
 - Guardar diagrama de fluxo e checklist de configuracao.
 - Incluir instrucoes de como trocar o endpoint (dev/prod).
+
+## Build do sketch (VS Code + PlatformIO)
+
+Prereqs:
+- VS Code
+- Extensao PlatformIO IDE (VS Code)
+
+Passos:
+- Abrir o repo no VS Code.
+- Instalar/abrir o PlatformIO IDE.
+- Criar um novo projeto PlatformIO:
+  - Board: "Espressif ESP32 Dev Module" (esp32dev)
+  - Framework: Arduino
+  - Location: `wokwi/` (usar como pasta do projeto)
+- Garantir que o `platformio.ini` aponta para `src_dir = .` e usa `sketch.ino`.
+- Compilar o projeto (PlatformIO: "Build").
+
+Outputs esperados:
+- `.pio/build/esp32dev/firmware.bin`
+- `.pio/build/esp32dev/firmware.elf`
+
+Validacao:
+- Confirmar que existem os ficheiros em `.pio/build/esp32dev/`.
+- Confirmar que o `wokwi.toml` (na pasta `wokwi/`) aponta para esses ficheiros.
