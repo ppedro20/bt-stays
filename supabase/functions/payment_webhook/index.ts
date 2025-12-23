@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
   const enqueueUrl = Deno.env.get("ENQUEUE_URL");
   const enqueueSecret = Deno.env.get("ENQUEUE_SECRET");
 
-  if (!stripeSecret || !enqueueUrl || !enqueueSecret) {
+  if (!stripeSecret) {
     logError("payment_webhook", "not_configured", { requestId });
     return json({ error: "not_configured" }, 501);
   }
@@ -171,6 +171,11 @@ Deno.serve(async (req) => {
 
   if (paymentStatus !== "paid") {
     logInfo("payment_webhook", "processed_non_paid", { requestId, eventId, eventType, paymentStatus });
+    return json({ ok: true });
+  }
+
+  if (!enqueueUrl || !enqueueSecret) {
+    logInfo("payment_webhook", "enqueue_not_configured", { requestId, eventId, eventType });
     return json({ ok: true });
   }
 
