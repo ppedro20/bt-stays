@@ -69,8 +69,19 @@ function getNested(obj: Record<string, unknown>, path: string[]): unknown {
   }, obj as unknown);
 }
 
-function extractProviderPaymentId(event: { data?: { object?: Record<string, unknown> } }): string | null {
+function extractProviderPaymentId(
+  eventType: string,
+  event: { data?: { object?: Record<string, unknown> } },
+): string | null {
   const obj = (event.data?.object ?? {}) as Record<string, unknown>;
+  if (eventType.startsWith("checkout.session.")) {
+    return (
+      toText(obj.id) ??
+      toText(obj.payment_intent) ??
+      toText(getNested(obj, ["payment_intent", "id"])) ??
+      null
+    );
+  }
   return (
     toText(obj.payment_intent) ??
     toText(getNested(obj, ["payment_intent", "id"])) ??
@@ -154,7 +165,7 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
-  const providerPaymentId = extractProviderPaymentId(event);
+  const providerPaymentId = extractProviderPaymentId(eventType, event);
   const { error: processError } = await supabaseAdmin.rpc("process_payment_webhook_event", {
     p_provider: "stripe",
     p_event_id: eventId,
