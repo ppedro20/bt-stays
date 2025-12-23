@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import type { CheckAccessStatusResponse, CreatePurchaseResponse, DemoPayResponse, PaymentStatusResponse } from "./types";
 import { BlockingLoading, Button, EmptyState, ErrorState, InputCode6, StatusBadge, useToast } from "@bt/shared/ui";
@@ -76,6 +76,7 @@ const TRANSLATIONS: Record<Language, Record<string, string | TranslationFn>> = {
     busy_check_access_status: "A validar...",
     busy_confirm_purchase: "A confirmar compra...",
     busy_payment_status: "A atualizar pagamento...",
+    stripe_polling_stopped: "Pagamento ainda pendente. Atualiza manualmente daqui a pouco.",
     decision_valid: "VÁLIDO",
     decision_expired: "EXPIRADO",
     decision_revoked: "REVOGADO",
@@ -144,6 +145,7 @@ const TRANSLATIONS: Record<Language, Record<string, string | TranslationFn>> = {
     busy_check_access_status: "Validating...",
     busy_confirm_purchase: "Confirming purchase...",
     busy_payment_status: "Refreshing payment...",
+    stripe_polling_stopped: "Payment still pending. Refresh manually in a moment.",
     decision_valid: "VALID",
     decision_expired: "EXPIRED",
     decision_revoked: "REVOKED",
@@ -212,6 +214,7 @@ const TRANSLATIONS: Record<Language, Record<string, string | TranslationFn>> = {
     busy_check_access_status: "Validation...",
     busy_confirm_purchase: "Confirmation de l'achat...",
     busy_payment_status: "Actualisation du paiement...",
+    stripe_polling_stopped: "Paiement encore en attente. Actualisez manuellement dans un instant.",
     decision_valid: "VALIDE",
     decision_expired: "EXPIRÉ",
     decision_revoked: "RÉVOQUÉ",
@@ -226,6 +229,9 @@ const TRANSLATIONS: Record<Language, Record<string, string | TranslationFn>> = {
     status_issued: "ÉMIS",
   },
 } as const;
+
+const STRIPE_POLL_INTERVAL_MS = 3000;
+const STRIPE_POLL_MAX_ATTEMPTS = 40;
 
 type TranslationKey = keyof typeof TRANSLATIONS.pt;
 
@@ -500,6 +506,7 @@ export function App() {
   const [stripePolling, setStripePolling] = useState<boolean>(false);
   const [savedCodes, setSavedCodes] = useState<SavedCode[]>(() => readSavedCodes());
   const [, setPurchaseHistory] = useState<PurchaseHistoryItem[]>(() => readPurchaseHistory());
+  const stripePollAttemptsRef = useRef(0);
 
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<Page>(() => parseHashRoute().page ?? "b1");
@@ -809,14 +816,22 @@ export function App() {
     if (page !== "b3_stripe" || !stripeSessionId) return;
     let active = true;
     let timeoutId: number | null = null;
+    stripePollAttemptsRef.current = 0;
 
     const poll = async () => {
       if (!active) return;
       setStripePolling(true);
       const nextStatus = await fetchStripeStatus(false);
       setStripePolling(false);
-      if (active && nextStatus?.status === "pending") {
-        timeoutId = window.setTimeout(poll, 3000);
+      if (!active) return;
+      if (nextStatus?.status === "pending") {
+        stripePollAttemptsRef.current += 1;
+        if (stripePollAttemptsRef.current >= STRIPE_POLL_MAX_ATTEMPTS) {
+          setError(t("stripe_polling_stopped"));
+          setRetryAction("payment_status");
+          return;
+        }
+        timeoutId = window.setTimeout(poll, STRIPE_POLL_INTERVAL_MS);
       }
     };
 
@@ -825,7 +840,7 @@ export function App() {
       active = false;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [page, stripeSessionId]);
+  }, [page, stripeSessionId, language]);
 
   useEffect(() => {
     if (!pendingPurchase || busy) return;

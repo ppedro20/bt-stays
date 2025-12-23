@@ -1,15 +1,5 @@
 import { corsHeaders } from "../_shared/cors.ts";
-import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 import { logError, logInfo } from "../_shared/log.ts";
-
-type Body = {
-  provider?: string;
-  event_id?: string;
-  provider_payment_id?: string;
-  event_type?: string;
-  payment_status?: string;
-  payload?: unknown;
-};
 
 function json(res: unknown, status = 200) {
   return new Response(JSON.stringify(res), {
@@ -76,9 +66,10 @@ Deno.serve(async (req) => {
   }
 
   const stripeSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  const legacySecret = Deno.env.get("PAYMENT_WEBHOOK_SECRET");
+  const enqueueUrl = Deno.env.get("ENQUEUE_URL");
+  const enqueueSecret = Deno.env.get("ENQUEUE_SECRET");
 
-  if (!stripeSecret && !legacySecret) {
+  if (!stripeSecret || !enqueueUrl || !enqueueSecret) {
     logError("payment_webhook", "not_configured", { requestId });
     return json({ error: "not_configured" }, 501);
   }
@@ -86,104 +77,57 @@ Deno.serve(async (req) => {
   const bodyText = await req.text();
 
   const stripeHeader = req.headers.get("stripe-signature");
-  if (stripeSecret && stripeHeader) {
-    const valid = await verifyStripeSignature(stripeSecret, stripeHeader, bodyText);
-    if (!valid) {
-      logError("payment_webhook", "stripe_signature_invalid", { requestId });
-      return json({ error: "unauthorized" }, 401);
-    }
-
-    let event: {
-      id: string;
-      type: string;
-      data: { object: { id?: string; payment_intent?: string | null } };
-    };
-    try {
-      event = JSON.parse(bodyText);
-    } catch {
-      logInfo("payment_webhook", "invalid_json", { requestId, provider: "stripe" });
-      return json({ error: "invalid_json" }, 400);
-    }
-
-    const eventType = event.type?.trim();
-    const objectId = event.data?.object?.id?.trim();
-    if (!eventType || !objectId) {
-      logInfo("payment_webhook", "missing_fields", { requestId, provider: "stripe" });
-      return json({ error: "missing_fields" }, 400);
-    }
-
-    let paymentStatus: string | null = null;
-    if (eventType === "checkout.session.completed") {
-      paymentStatus = "paid";
-    } else if (eventType === "payment_intent.succeeded") {
-      paymentStatus = "paid";
-    } else if (eventType === "payment_intent.payment_failed") {
-      paymentStatus = "failed";
-    } else if (eventType === "payment_intent.canceled") {
-      paymentStatus = "failed";
-    } else {
-      logInfo("payment_webhook", "ignored_event", { requestId, provider: "stripe", eventType });
-      return json({ ok: true, ignored: true });
-    }
-
-    // For checkout.session.completed, match by session id (stored in provider_checkout_session_id).
-    const providerPaymentId = eventType === "checkout.session.completed" ? objectId : objectId;
-
-    const { error } = await supabaseAdmin.rpc("process_payment_webhook_event", {
-      p_provider: "stripe",
-      p_event_id: event.id,
-      p_provider_payment_id: providerPaymentId,
-      p_event_type: eventType,
-      p_payment_status: paymentStatus,
-      p_payload: event,
-    });
-
-    if (error) {
-      logError("payment_webhook", "process_failed", { requestId, provider: "stripe", err: error.message });
-      return json({ error: error.message }, 400);
-    }
-    logInfo("payment_webhook", "processed", { requestId, provider: "stripe", eventType, eventId: event.id });
-    return json({ ok: true });
-  }
-
-  const provided = req.headers.get("x-webhook-secret");
-  if (!provided || !legacySecret || provided !== legacySecret) {
-    logError("payment_webhook", "legacy_unauthorized", { requestId });
+  if (!stripeHeader) {
+    logError("payment_webhook", "missing_signature", { requestId });
     return json({ error: "unauthorized" }, 401);
   }
 
-  let body: Body;
+  const valid = await verifyStripeSignature(stripeSecret, stripeHeader, bodyText);
+  if (!valid) {
+    logError("payment_webhook", "stripe_signature_invalid", { requestId });
+    return json({ error: "unauthorized" }, 401);
+  }
+
+  let event: { id?: string; type?: string };
   try {
-    body = JSON.parse(bodyText);
+    event = JSON.parse(bodyText);
   } catch {
-    logInfo("payment_webhook", "invalid_json", { requestId, provider: "legacy" });
+    logInfo("payment_webhook", "invalid_json", { requestId, provider: "stripe" });
     return json({ error: "invalid_json" }, 400);
   }
 
-  const provider = body.provider?.trim();
-  const eventId = body.event_id?.trim();
-  const providerPaymentId = body.provider_payment_id?.trim();
-  const eventType = body.event_type?.trim() ?? null;
-  const paymentStatus = body.payment_status?.trim() ?? "paid";
-
-  if (!provider || !eventId) {
-    logInfo("payment_webhook", "missing_fields", { requestId, provider: provider ?? "legacy" });
+  const eventId = event.id?.trim();
+  const eventType = event.type?.trim();
+  if (!eventId || !eventType) {
+    logInfo("payment_webhook", "missing_fields", { requestId, provider: "stripe" });
     return json({ error: "missing_fields" }, 400);
   }
 
-  const { error } = await supabaseAdmin.rpc("process_payment_webhook_event", {
-    p_provider: provider,
-    p_event_id: eventId,
-    p_provider_payment_id: providerPaymentId ?? null,
-    p_event_type: eventType,
-    p_payment_status: paymentStatus,
-    p_payload: body.payload ?? {},
-  });
-
-  if (error) {
-    logError("payment_webhook", "process_failed", { requestId, provider, err: error.message });
-    return json({ error: error.message }, 400);
+  let enqueueResponse: Response;
+  try {
+    enqueueResponse = await fetch(enqueueUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Enqueue-Secret": enqueueSecret,
+      },
+      body: JSON.stringify({ event_id: eventId, event_type: eventType }),
+    });
+  } catch (err) {
+    logError("payment_webhook", "enqueue_request_failed", { requestId, err: String(err) });
+    return json({ error: "enqueue_failed" }, 502);
   }
-  logInfo("payment_webhook", "processed", { requestId, provider, eventId });
+
+  if (!enqueueResponse.ok) {
+    const body = await enqueueResponse.text().catch(() => "");
+    logError("payment_webhook", "enqueue_rejected", {
+      requestId,
+      status: enqueueResponse.status,
+      body,
+    });
+    return json({ error: "enqueue_rejected" }, 502);
+  }
+
+  logInfo("payment_webhook", "enqueue_accepted", { requestId, provider: "stripe", eventId, eventType });
   return json({ ok: true });
 });

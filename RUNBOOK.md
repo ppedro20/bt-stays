@@ -1,12 +1,40 @@
 # Runbook (dev + deploy)
 
-This is the step-by-step guide to run the project locally and deploy.
+Guia completo e atualizado para correr o projeto localmente e fazer deploy.
 
 ## Prereqs
 
 - Node.js 20+
 - Supabase CLI
-- Stripe account (test mode) if using Stripe
+- Stripe account (test mode) se usar Stripe real
+
+## 0) Contas e credenciais
+
+1) Resend (free tier)
+   - Criar conta e gerar API key.
+   - Confirmar dominio(s) e remetente.
+
+2) Stripe
+   - Confirmar STRIPE_SECRET_KEY.
+   - Confirmar STRIPE_WEBHOOK_SECRET.
+
+3) Supabase
+   - Garantir acesso ao projeto.
+   - Edge Functions habilitadas.
+   - Ter SUPABASE_SERVICE_ROLE_KEY.
+
+4) Segredo compartilhado
+   - Definir ENQUEUE_SECRET para autenticar webhook -> enqueue.
+
+Definir nas Edge Functions:
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- RESEND_API_KEY
+- RESEND_FROM
+- SUPABASE_URL
+- SUPABASE_SERVICE_ROLE_KEY
+- ENQUEUE_SECRET
+- ENQUEUE_URL
 
 ## 1) Clone and install dependencies
 
@@ -51,32 +79,8 @@ Enable in Supabase:
 
 ## 5) Supabase Edge Functions env
 
-Create `supabase/.env` from `supabase/.env.example`.
-
-Required:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Payments:
-
-- `PAYMENTS_PROVIDER=mock` (default) or `stripe`
-- `PAYMENTS_DAY_PASS_AMOUNT_CENTS`
-- `PAYMENTS_CURRENCY` (default `EUR`)
-
-Stripe (if real):
-
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_SUCCESS_URL` (example: `https://<user-web>/#/b3/stripe?session_id={CHECKOUT_SESSION_ID}`)
-- `STRIPE_CANCEL_URL` (example: `https://<user-web>/#/b1`)
-
-PWA advanced:
-
-- `VAPID_PUBLIC_KEY`
-- `VAPID_PRIVATE_KEY`
-- `VAPID_SUBJECT`
-- `PUSH_ADMIN_SECRET`
+Create supabase/.env from supabase/.env.example.
+As variaveis para Edge Functions estao no Modulo 1.
 
 ## 6) Deploy Supabase Edge Functions
 
@@ -100,14 +104,14 @@ on conflict (user_id) do update set role = excluded.role, active = excluded.acti
 
 Create env files from examples:
 
-- `apps/user-web/.env` from `apps/user-web/.env.example`
-- `apps/admin-web/.env` from `apps/admin-web/.env.example`
+- apps/user-web/.env from apps/user-web/.env.example
+- apps/admin-web/.env from apps/admin-web/.env.example
 
 Vars:
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_VAPID_PUBLIC_KEY` (optional, for push)
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
+- VITE_VAPID_PUBLIC_KEY (optional, for push)
 
 ## 9) Run apps locally
 
@@ -133,19 +137,19 @@ npm run preview:user
 
 ## 11) Deploy user-web (Vercel)
 
-- Set project root to `apps/user-web`.
-- `vercel.json` provides SPA rewrite and cache headers.
+- Set project root to apps/user-web.
+- vercel.json provides SPA rewrite and cache headers.
 - Ensure HTTPS is enabled.
 
 ## 12) Deploy admin-web (Vercel)
 
-- Set project root to `apps/admin-web`.
-- Use `vercel.json` for SPA rewrite and cache headers.
+- Set project root to apps/admin-web.
+- Use vercel.json for SPA rewrite and cache headers.
 - Ensure HTTPS is enabled.
 
 ## 13) Native wrappers (Capacitor)
 
-From `apps/user-web`:
+From apps/user-web:
 
 ```bash
 npm run build
@@ -162,5 +166,5 @@ npx cap open ios
 ```
 
 Notes:
-- Update `apps/user-web/capacitor.config.ts` with your final `appId`.
+- Update apps/user-web/capacitor.config.ts with your final appId.
 - Android requires Android Studio; iOS requires Xcode on macOS.
