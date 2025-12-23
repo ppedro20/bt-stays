@@ -3,4 +3,5 @@ dist/
 .env
 .env.*
 .DS_Store
+wokwi/wokwi_env.h
 
