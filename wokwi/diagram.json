@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "Pedro Pedro",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 48, "left": 254.44, "attrs": {} },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -195.2,
+      "left": 303.2,
+      "attrs": { "pins": "i2c" }
+    },
+    {
+      "type": "wokwi-membrane-keypad",
+      "id": "keypad1",
+      "top": -299.6,
+      "left": -176.8,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:5V", "lcd1:VCC", "red", [ "h-134.25", "v-403.3" ] ],
+    [ "esp:GND.1", "lcd1:GND", "gold", [ "h-115.05", "v-364.8" ] ],
+    [ "esp:22", "lcd1:SCL", "magenta", [ "h0" ] ],
+    [ "esp:21", "lcd1:SDA", "magenta", [ "h-57.6", "v-269" ] ],
+    [ "keypad1:R1", "esp:13", "green", [ "v0" ] ],
+    [ "keypad1:R2", "esp:12", "green", [ "v0" ] ],
+    [ "keypad1:R3", "esp:14", "green", [ "v0" ] ],
+    [ "keypad1:R4", "esp:27", "green", [ "v0" ] ],
+    [ "keypad1:C1", "esp:26", "green", [ "v0" ] ],
+    [ "keypad1:C2", "esp:25", "green", [ "v0" ] ],
+    [ "esp:33", "keypad1:C3", "green", [ "h0" ] ],
+    [ "esp:32", "keypad1:C4", "green", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}

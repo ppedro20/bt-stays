@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+diagram = "diagram.json"
+firmware = "build/sketch.ino.bin"
+elf = "build/sketch.ino.elf"
