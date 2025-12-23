@@ -1,4 +1,5 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 import { logError, logInfo } from "../_shared/log.ts";
 
 function json(res: unknown, status = 200) {
@@ -57,6 +58,50 @@ async function verifyStripeSignature(secret: string, header: string | null, body
   return parsed.signatures.some((sig) => timingSafeEqualHex(sig, expected));
 }
 
+function toText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function getNested(obj: Record<string, unknown>, path: string[]): unknown {
+  return path.reduce((acc, key) => {
+    if (!acc || typeof acc !== "object") return undefined;
+    return (acc as Record<string, unknown>)[key];
+  }, obj as unknown);
+}
+
+function extractProviderPaymentId(event: { data?: { object?: Record<string, unknown> } }): string | null {
+  const obj = (event.data?.object ?? {}) as Record<string, unknown>;
+  return (
+    toText(obj.payment_intent) ??
+    toText(getNested(obj, ["payment_intent", "id"])) ??
+    toText(obj.id) ??
+    null
+  );
+}
+
+function mapPaymentStatus(eventType: string): string | null {
+  switch (eventType) {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded":
+    case "payment_intent.succeeded":
+    case "charge.succeeded":
+      return "paid";
+    case "payment_intent.payment_failed":
+    case "payment_intent.canceled":
+    case "checkout.session.async_payment_failed":
+      return "failed";
+    case "checkout.session.expired":
+      return "expired";
+    case "charge.refunded":
+    case "charge.refund.updated":
+    case "refund.created":
+    case "refund.updated":
+      return "refunded";
+    default:
+      return null;
+  }
+}
+
 Deno.serve(async (req) => {
   const requestId = crypto.randomUUID();
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -88,7 +133,7 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let event: { id?: string; type?: string };
+  let event: { id?: string; type?: string; data?: { object?: Record<string, unknown> } };
   try {
     event = JSON.parse(bodyText);
   } catch {
@@ -101,6 +146,32 @@ Deno.serve(async (req) => {
   if (!eventId || !eventType) {
     logInfo("payment_webhook", "missing_fields", { requestId, provider: "stripe" });
     return json({ error: "missing_fields" }, 400);
+  }
+
+  const paymentStatus = mapPaymentStatus(eventType);
+  if (!paymentStatus) {
+    logInfo("payment_webhook", "ignored_event", { requestId, eventId, eventType });
+    return json({ ok: true });
+  }
+
+  const providerPaymentId = extractProviderPaymentId(event);
+  const { error: processError } = await supabaseAdmin.rpc("process_payment_webhook_event", {
+    p_provider: "stripe",
+    p_event_id: eventId,
+    p_provider_payment_id: providerPaymentId,
+    p_event_type: eventType,
+    p_payment_status: paymentStatus,
+    p_payload: event,
+  });
+
+  if (processError) {
+    logError("payment_webhook", "process_failed", { requestId, err: processError.message, eventId, eventType });
+    return json({ error: "process_failed" }, 500);
+  }
+
+  if (paymentStatus !== "paid") {
+    logInfo("payment_webhook", "processed_non_paid", { requestId, eventId, eventType, paymentStatus });
+    return json({ ok: true });
   }
 
   let enqueueResponse: Response;
