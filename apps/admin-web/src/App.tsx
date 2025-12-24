@@ -1,4 +1,4 @@
-﻿﻿import { useEffect, useMemo, useState } from "react";
+﻿﻿﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import type {
   AdminCodeDetailResponse,
@@ -533,63 +533,6 @@ export function App() {
           </aside>
           <main className="content">
             <div className="container">
-
-                  <div className="row">
-                    <div className="mono">{sessionEmail}</div>
-                    <div className="mono">{role}</div>
-                    <button onClick={signOut} disabled={busy !== null} className="danger">
-                      Logout
-                    </button>
-                  </div>
-                ) : null}
-              </header>
-
-              {sessionEmail === null ? (
-                <section className="card">
-                  <h2>Login</h2>
-                  <div className="row">
-                    <input
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="email"
-                      autoComplete="username"
-                      disabled={busy !== null}
-                    />
-                    <input
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="password"
-                      type="text"
-                      autoComplete="current-password"
-                      disabled={busy !== null}
-                    />
-                    <button onClick={signIn} disabled={busy !== null}>
-                      Login
-                    </button>
-                  </div>
-                  {busy ? <div className="mono">Loading: {busy}</div> : null}
-                  {loginState === "invalid_credentials" ? <div className="mono">Credenciais inválidas.</div> : null}
-                  {message ? <div className="mono">{message}</div> : null}
-                </section>
-              ) : null}
-
-              {sessionEmail !== null && role === null ? (
-                <section className="card">
-                  <h2>RBAC</h2>
-                  {busy ? <div className="mono">Loading: {busy}</div> : null}
-                  {loginState === "no_role" ? <div className="mono">Sem role válido (RBAC).</div> : null}
-                  {message ? <div className="mono">{message}</div> : null}
-                  <div className="mono">Sessão: {sessionEmail}</div>
-                  <div className="row" style={{ marginTop: 10 }}>
-                    <button onClick={signOut} disabled={busy !== null} className="danger">
-                      Sair
-                    </button>
-                  </div>
-                </section>
-              ) : null}
-
-              {role ? (
-                <>
                   {message ? (
                     <section className="card">
                       <div className="mono">{message}</div>
@@ -1313,11 +1256,10 @@ export function App() {
                       ) : null}
                     </section>
                   ) : null}
-                </>
-            </div>
-          </main>
-        </>
-      )}
-    </div>
-  );
+                </div>
+              </main>
+            </>
+          )}
+        </div>
+      );
 }
