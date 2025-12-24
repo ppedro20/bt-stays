@@ -64,7 +64,6 @@ export function App() {
   const [rfidCards, setRfidCards] = useState<AdminRfidListResponse["cards"]>([]);
   const [rfidLogs, setRfidLogs] = useState<AdminRfidListResponse["logs"]>([]);
   const [rfidCardUid, setRfidCardUid] = useState<string>("");
-  const [rfidCode, setRfidCode] = useState<string>("");
   const [rfidPermanent, setRfidPermanent] = useState<boolean>(false);
   const [rfidKeycard, setRfidKeycard] = useState<string>("");
   const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
@@ -156,7 +155,6 @@ export function App() {
       setRfidCards([]);
       setRfidLogs([]);
       setRfidCardUid("");
-      setRfidCode("");
       setRfidPermanent(false);
       setRfidKeycard("");
       setRfidLogFilter("");
@@ -277,24 +275,18 @@ export function App() {
 
   async function upsertRfidCard() {
     const cardUid = rfidCardUid.trim();
-    const code = rfidCode.trim();
     if (!cardUid) {
       setMessage("Cartao UID obrigatorio.");
-      return;
-    }
-    if (!rfidPermanent && !/^[0-9]{6}$/.test(code)) {
-      setMessage("Codigo deve ter 6 digitos.");
       return;
     }
     setBusy("rfid_upsert");
     setMessage(null);
     try {
       const { error } = await supabase.functions.invoke("admin_rfid_upsert", {
-        body: { card_uid: cardUid, code, permanent: rfidPermanent, keycard: rfidKeycard.trim() || null },
+        body: { card_uid: cardUid, permanent: true, keycard: rfidKeycard.trim() || null },
       });
       if (error) throw error;
       setRfidCardUid("");
-      setRfidCode("");
       setRfidPermanent(false);
       setRfidKeycard("");
       await loadRfid();
@@ -953,24 +945,25 @@ export function App() {
               <div className="row" style={{ marginBottom: 10 }}>
                 <input
                   value={rfidCardUid}
-                  onChange={(e) => setRfidCardUid(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const trimmed = value.trim();
+                    setRfidCardUid(value);
+                    if (!rfidKeycard.trim() && trimmed) {
+                      setRfidKeycard(trimmed);
+                    }
+                    if (!rfidPermanent) setRfidPermanent(true);
+                  }}
                   placeholder="card_uid (ex: 04A1B2C3D4)"
                   autoComplete="off"
                   disabled={busy !== null}
-                />
-                <input
-                  value={rfidCode}
-                  onChange={(e) => setRfidCode(e.target.value)}
-                  placeholder="codigo (6 digitos)"
-                  autoComplete="off"
-                  disabled={busy !== null || rfidPermanent}
                 />
                 <label className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <input
                     type="checkbox"
                     checked={rfidPermanent}
                     onChange={(e) => setRfidPermanent(e.target.checked)}
-                    disabled={busy !== null}
+                    disabled={true}
                     style={{ width: "auto" }}
                   />
                   permanente
@@ -978,7 +971,7 @@ export function App() {
                 <input
                   value={rfidKeycard}
                   onChange={(e) => setRfidKeycard(e.target.value)}
-                  placeholder="keycard (opcional)"
+                  placeholder="pin (opcional)"
                   autoComplete="off"
                   disabled={busy !== null}
                 />
@@ -1001,7 +994,7 @@ export function App() {
                     <tr>
                       <th>Card UID</th>
                       <th>Tipo</th>
-                      <th>Keycard</th>
+                      <th>PIN</th>
                       <th>Codigo</th>
                       <th>Status</th>
                       <th>Valid until</th>
@@ -1042,7 +1035,7 @@ export function App() {
                   <input
                     value={rfidLogFilter}
                     onChange={(e) => setRfidLogFilter(e.target.value)}
-                    placeholder="filtrar por card_uid ou codigo"
+                    placeholder="filtrar por card_uid ou pin"
                     autoComplete="off"
                     disabled={busy !== null}
                   />
@@ -1071,7 +1064,7 @@ export function App() {
                         <tr>
                           <th>Quando</th>
                           <th>Card UID</th>
-                          <th>Keycard</th>
+                          <th>PIN</th>
                           <th>Resultado</th>
                           <th>Motivo</th>
                         </tr>

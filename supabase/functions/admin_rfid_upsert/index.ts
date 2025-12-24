@@ -33,16 +33,9 @@ Deno.serve(async (req) => {
 
   const cardUid = body.card_uid?.trim();
   const code = body.code?.trim();
-  const permanent = body.permanent ?? false;
   const keycard = body.keycard?.trim();
   if (!cardUid) {
     return new Response(JSON.stringify({ error: "missing_card_uid" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  if (!permanent && !code) {
-    return new Response(JSON.stringify({ error: "missing_code" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -51,7 +44,7 @@ Deno.serve(async (req) => {
   const { data, error } = await supabaseAdmin.rpc("upsert_rfid_card", {
     p_card_uid: cardUid,
     p_code: code,
-    p_permanent: permanent,
+    p_permanent: true,
     p_keycard: keycard,
     p_actor_id: auth.userId,
   });
