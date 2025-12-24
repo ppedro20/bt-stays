@@ -89,21 +89,6 @@ npx supabase functions deploy
 ```
 
 ## 6.1) RFID (cards + logs) setup
-
-Apply migrations (includes RFID tables/views/RPCs):
-
-```bash
-npx supabase db push
-```
-
-Deploy new Edge Functions:
-
-```bash
-npx supabase functions deploy admin_rfid_list
-npx supabase functions deploy admin_rfid_upsert
-npx supabase functions deploy device_consume_rfid
-```
-
 Device envs (Wokwi / ESP32):
 
 - Set `DEVICE_SECRET` in Supabase Edge Functions env (same as device).

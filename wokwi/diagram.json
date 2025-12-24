@@ -24,6 +24,13 @@
       "top": -28,
       "left": 524,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-rfid-tag",
+      "id": "tag1",
+      "top": 72,
+      "left": 556,
+      "attrs": { "uid": "04A1B2C3" }
     }
   ],
   "connections": [

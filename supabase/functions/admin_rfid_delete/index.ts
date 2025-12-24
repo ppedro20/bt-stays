@@ -2,7 +2,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { assertAdmin } from "../_shared/adminAuth.ts";
 import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 
-type Body = { card_uid?: string; code?: string; permanent?: boolean; keycard?: string };
+type Body = { card_id?: string; card_uid?: string };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -31,28 +31,18 @@ Deno.serve(async (req) => {
     });
   }
 
+  const cardId = body.card_id?.trim();
   const cardUid = body.card_uid?.trim();
-  const code = body.code?.trim();
-  const permanent = body.permanent ?? false;
-  const keycard = body.keycard?.trim();
-  if (!cardUid) {
-    return new Response(JSON.stringify({ error: "missing_card_uid" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  if (!permanent && !code) {
-    return new Response(JSON.stringify({ error: "missing_code" }), {
+  if (!cardId && !cardUid) {
+    return new Response(JSON.stringify({ error: "missing_card_identifier" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  const { data, error } = await supabaseAdmin.rpc("upsert_rfid_card", {
-    p_card_uid: cardUid,
-    p_code: code,
-    p_permanent: permanent,
-    p_keycard: keycard,
+  const { error } = await supabaseAdmin.rpc("delete_rfid_card", {
+    p_card_id: cardId ?? null,
+    p_card_uid: cardUid ?? null,
     p_actor_id: auth.userId,
   });
 
@@ -63,20 +53,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const row = data?.[0];
-  if (!row) {
-    return new Response(JSON.stringify({ error: "empty_result" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      me: { user_id: auth.userId, role: auth.role },
-      card: row,
-    }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-  );
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });

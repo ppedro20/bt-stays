@@ -65,6 +65,8 @@ export function App() {
   const [rfidLogs, setRfidLogs] = useState<AdminRfidListResponse["logs"]>([]);
   const [rfidCardUid, setRfidCardUid] = useState<string>("");
   const [rfidCode, setRfidCode] = useState<string>("");
+  const [rfidPermanent, setRfidPermanent] = useState<boolean>(false);
+  const [rfidKeycard, setRfidKeycard] = useState<string>("");
   const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("");
   const [paymentSince, setPaymentSince] = useState<string>("");
@@ -155,6 +157,8 @@ export function App() {
       setRfidLogs([]);
       setRfidCardUid("");
       setRfidCode("");
+      setRfidPermanent(false);
+      setRfidKeycard("");
       setRfidLogFilter("");
       setPaymentStatusFilter("");
       setPaymentSince("");
@@ -278,7 +282,7 @@ export function App() {
       setMessage("Cartao UID obrigatorio.");
       return;
     }
-    if (!/^[0-9]{6}$/.test(code)) {
+    if (!rfidPermanent && !/^[0-9]{6}$/.test(code)) {
       setMessage("Codigo deve ter 6 digitos.");
       return;
     }
@@ -286,11 +290,29 @@ export function App() {
     setMessage(null);
     try {
       const { error } = await supabase.functions.invoke("admin_rfid_upsert", {
-        body: { card_uid: cardUid, code },
+        body: { card_uid: cardUid, code, permanent: rfidPermanent, keycard: rfidKeycard.trim() || null },
       });
       if (error) throw error;
       setRfidCardUid("");
       setRfidCode("");
+      setRfidPermanent(false);
+      setRfidKeycard("");
+      await loadRfid();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteRfidCard(cardId: string, cardUid: string) {
+    setBusy(`rfid_delete:${cardId}`);
+    setMessage(null);
+    try {
+      const { error } = await supabase.functions.invoke("admin_rfid_delete", {
+        body: { card_id: cardId, card_uid: cardUid },
+      });
+      if (error) throw error;
       await loadRfid();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erro desconhecido");
@@ -941,6 +963,23 @@ export function App() {
                   onChange={(e) => setRfidCode(e.target.value)}
                   placeholder="codigo (6 digitos)"
                   autoComplete="off"
+                  disabled={busy !== null || rfidPermanent}
+                />
+                <label className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={rfidPermanent}
+                    onChange={(e) => setRfidPermanent(e.target.checked)}
+                    disabled={busy !== null}
+                    style={{ width: "auto" }}
+                  />
+                  permanente
+                </label>
+                <input
+                  value={rfidKeycard}
+                  onChange={(e) => setRfidKeycard(e.target.value)}
+                  placeholder="keycard (opcional)"
+                  autoComplete="off"
                   disabled={busy !== null}
                 />
                 <button onClick={upsertRfidCard} disabled={!canQuery || busy !== null}>
@@ -961,20 +1000,34 @@ export function App() {
                   <thead>
                     <tr>
                       <th>Card UID</th>
+                      <th>Tipo</th>
+                      <th>Keycard</th>
                       <th>Codigo</th>
                       <th>Status</th>
                       <th>Valid until</th>
                       <th>Atualizado</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {rfidCards.map((c) => (
                       <tr key={c.card_id}>
                         <td className="mono">{c.card_uid}</td>
+                        <td className="mono">{c.permanent ? "permanente" : "codigo"}</td>
+                        <td className="mono">{c.keycard ?? "-"}</td>
                         <td className="mono">{c.code_plaintext ?? "-"}</td>
-                        <td className="mono">{c.code_status}</td>
+                        <td className="mono">{c.code_status ?? "-"}</td>
                         <td className="mono">{formatDateTime(c.valid_until)}</td>
                         <td className="mono">{formatDateTime(c.updated_at)}</td>
+                        <td>
+                          <button
+                            onClick={() => deleteRfidCard(c.card_id, c.card_uid)}
+                            disabled={busy !== null}
+                            className="link"
+                          >
+                            eliminar
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

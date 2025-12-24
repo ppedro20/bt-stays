@@ -17,7 +17,7 @@ export type AdminListResponse = {
     used_at: string | null;
     revoked_at: string | null;
     revoke_reason: string | null;
-    code_status: "issued" | "used" | "revoked" | "expired";
+    code_status: "issued" | "used" | "revoked" | "expired" | null;
   }>;
   audit: Array<{
     event_id: string;
@@ -97,9 +97,11 @@ export type AdminRfidListResponse = {
   cards: Array<{
     card_id: string;
     card_uid: string;
-    access_code_id: string;
+    permanent: boolean;
+    keycard: string | null;
+    access_code_id: string | null;
     code_plaintext: string | null;
-    code_status: "issued" | "used" | "revoked" | "expired";
+    code_status: "issued" | "used" | "revoked" | "expired" | null;
     valid_until: string | null;
     created_at: string;
     updated_at: string;
@@ -122,6 +124,8 @@ export type AdminRfidUpsertResponse = {
   card: {
     card_id: string;
     card_uid: string;
-    access_code_id: string;
+    access_code_id: string | null;
+    permanent: boolean;
+    keycard: string | null;
   };
 };
