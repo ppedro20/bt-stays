@@ -53,6 +53,7 @@ MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 String codeBuffer;
 const int CODE_LEN = 6;
 unsigned long lastRfidReadMs = 0;
+String serialLine;
 
 void lcdStatus(const String& line1, const String& line2 = "") {
   lcd.clear();
@@ -153,6 +154,31 @@ void handleCardUidSubmit(const String& cardUid) {
   }
 }
 
+void handleSerialUid() {
+  while (Serial.available() > 0) {
+    char c = static_cast<char>(Serial.read());
+    if (c == '\r') continue;
+    if (c == '\n') {
+      String line = serialLine;
+      serialLine = "";
+      line.trim();
+      if (line.length() == 0) return;
+      if (line.startsWith("UID:")) {
+        line.remove(0, 4);
+        line.trim();
+      }
+      if (line.length() > 0) {
+        Serial.print("Serial UID: ");
+        Serial.println(line);
+        lcdStatus("Cartao lido", "A validar...");
+        handleCardUidSubmit(line);
+      }
+      return;
+    }
+    if (serialLine.length() < 64) serialLine += c;
+  }
+}
+
 void handleCodeSubmit(const String& code) {
   lcdStatus("A validar...");
   String response;
@@ -211,6 +237,8 @@ void setup() {
 }
 
 void loop() {
+  handleSerialUid();
+
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
     unsigned long now = millis();
     if (now - lastRfidReadMs > 1500) {

@@ -19,17 +19,17 @@
       "attrs": {}
     },
     {
-      "type": "chip-rfid-rc522",
+      "type": "wokwi-rc522",
       "id": "rfid1",
-      "top": -28,
-      "left": 524,
+      "top": 20,
+      "left": 20,
       "attrs": {}
     },
     {
       "type": "wokwi-rfid-tag",
       "id": "tag1",
-      "top": 72,
-      "left": 556,
+      "top": 140,
+      "left": 20,
       "attrs": { "uid": "04A1B2C3" }
     }
   ],
@@ -56,5 +56,7 @@
     [ "esp:5", "rfid1:SDA", "purple", [ "h0" ] ],
     [ "esp:4", "rfid1:RST", "yellow", [ "h0" ] ]
   ],
-  "dependencies": {}
+  "dependencies": {
+    "MFRC522": "1.4.10"
+  }
 }
