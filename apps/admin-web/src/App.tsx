@@ -66,6 +66,8 @@ export function App() {
   const [rfidCardUid, setRfidCardUid] = useState<string>("");
   const [rfidPermanent, setRfidPermanent] = useState<boolean>(false);
   const [rfidKeycard, setRfidKeycard] = useState<string>("");
+  const [rfidEditCardUid, setRfidEditCardUid] = useState<string | null>(null);
+  const [rfidEditPin, setRfidEditPin] = useState<string>("");
   const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("");
   const [paymentSince, setPaymentSince] = useState<string>("");
@@ -157,6 +159,8 @@ export function App() {
       setRfidCardUid("");
       setRfidPermanent(false);
       setRfidKeycard("");
+      setRfidEditCardUid(null);
+      setRfidEditPin("");
       setRfidLogFilter("");
       setPaymentStatusFilter("");
       setPaymentSince("");
@@ -289,6 +293,29 @@ export function App() {
       setRfidCardUid("");
       setRfidPermanent(false);
       setRfidKeycard("");
+      await loadRfid();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveRfidPin(cardUid: string) {
+    const pin = rfidEditPin.trim();
+    if (!pin) {
+      setMessage("PIN obrigatorio.");
+      return;
+    }
+    setBusy(`rfid_pin:${cardUid}`);
+    setMessage(null);
+    try {
+      const { error } = await supabase.functions.invoke("admin_rfid_upsert", {
+        body: { card_uid: cardUid, permanent: true, keycard: pin },
+      });
+      if (error) throw error;
+      setRfidEditCardUid(null);
+      setRfidEditPin("");
       await loadRfid();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erro desconhecido");
@@ -1007,19 +1034,65 @@ export function App() {
                       <tr key={c.card_id}>
                         <td className="mono">{c.card_uid}</td>
                         <td className="mono">{c.permanent ? "permanente" : "codigo"}</td>
-                        <td className="mono">{c.keycard ?? "-"}</td>
+                        <td className="mono">
+                          {rfidEditCardUid === c.card_uid ? (
+                            <input
+                              value={rfidEditPin}
+                              onChange={(e) => setRfidEditPin(e.target.value)}
+                              placeholder="PIN"
+                              autoComplete="off"
+                              disabled={busy !== null}
+                            />
+                          ) : (
+                            c.keycard ?? "-"
+                          )}
+                        </td>
                         <td className="mono">{c.code_plaintext ?? "-"}</td>
                         <td className="mono">{c.code_status ?? "-"}</td>
                         <td className="mono">{formatDateTime(c.valid_until)}</td>
                         <td className="mono">{formatDateTime(c.updated_at)}</td>
                         <td>
-                          <button
-                            onClick={() => deleteRfidCard(c.card_id, c.card_uid)}
-                            disabled={busy !== null}
-                            className="link"
-                          >
-                            eliminar
-                          </button>
+                          {rfidEditCardUid === c.card_uid ? (
+                            <>
+                              <button
+                                onClick={() => saveRfidPin(c.card_uid)}
+                                disabled={busy !== null}
+                                className="link"
+                              >
+                                guardar pin
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setRfidEditCardUid(null);
+                                  setRfidEditPin("");
+                                }}
+                                disabled={busy !== null}
+                                className="link"
+                              >
+                                cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setRfidEditCardUid(c.card_uid);
+                                  setRfidEditPin(c.keycard ?? c.card_uid);
+                                }}
+                                disabled={busy !== null}
+                                className="link"
+                              >
+                                editar pin
+                              </button>
+                              <button
+                                onClick={() => deleteRfidCard(c.card_id, c.card_uid)}
+                                disabled={busy !== null}
+                                className="link"
+                              >
+                                eliminar
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
