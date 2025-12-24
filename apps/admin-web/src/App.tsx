@@ -44,6 +44,7 @@ type View = "home" | "search" | "events" | "payments" | "export" | "rfid";
 export function App() {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [role, setRole] = useState<"admin" | "superadmin" | null>(null);
@@ -410,14 +411,20 @@ export function App() {
   }
 
   const todayKey = (serverTime ?? new Date().toISOString()).slice(0, 10);
+  const totalCodes = data?.codes.length ?? 0;
   const activeCodes = data ? data.codes.filter((c) => c.code_status === "issued").length : 0;
+  const usedCodes = data ? data.codes.filter((c) => c.code_status === "used").length : 0;
+  const expiredCodes = data ? data.codes.filter((c) => c.code_status === "expired").length : 0;
+  const revokedCodes = data ? data.codes.filter((c) => c.code_status === "revoked").length : 0;
+  const issuedToday = data ? data.codes.filter((c) => c.issued_at.slice(0, 10) === todayKey).length : 0;
+  const usedToday = data ? data.codes.filter((c) => c.used_at && c.used_at.slice(0, 10) === todayKey).length : 0;
   const expiredToday =
     data?.audit?.filter((e) => e.event_type === "code_expired" && e.created_at.slice(0, 10) === todayKey).length ?? 0;
   const revokedToday =
     data?.audit?.filter((e) => e.event_type === "code_revoked" && e.created_at.slice(0, 10) === todayKey).length ?? 0;
 
   return (
-    <div className={role ? "appShell" : "container"}>
+    <div className={role ? "appShell" : "container loginView"}>
       {!role ? (
         <>
           <header className="header">
@@ -441,10 +448,19 @@ export function App() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="password"
-                  type="text"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   disabled={busy !== null}
                 />
+                <button
+                  type="button"
+                  className="secondary iconButton"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={busy !== null}
+                  aria-label={showPassword ? "Ocultar password" : "Mostrar password"}
+                >
+                  {showPassword ? "Ocultar" : "Ver"}
+                </button>
                 <button onClick={signIn} disabled={busy !== null}>
                   Login
                 </button>
@@ -483,6 +499,13 @@ export function App() {
               </button>
             </div>
             <nav className="sidebarNav">
+              <button
+                className={`navBtn ${view === "home" ? "active" : ""}`}
+                onClick={() => setView("home")}
+                disabled={busy !== null}
+              >
+                Dashboard
+              </button>
               <button
                 className={`navBtn ${view === "search" ? "active" : ""}`}
                 onClick={() => setView("search")}
@@ -548,43 +571,43 @@ export function App() {
                       </button>
                     </div>
 
-                    <div className="grid2" style={{ marginTop: 12 }}>
+                    <div className="gridStats" style={{ marginTop: 12 }}>
                       <div>
-                        <div className="label">Códigos ativos</div>
+                        <div className="label">Total de codigos</div>
+                        <div className="mono">{totalCodes}</div>
+                      </div>
+                      <div>
+                        <div className="label">C?digos ativos</div>
                         <div className="mono">{activeCodes}</div>
                       </div>
                       <div>
-                        <div className="label">Códigos expirados hoje</div>
+                        <div className="label">C?digos usados</div>
+                        <div className="mono">{usedCodes}</div>
+                      </div>
+                      <div>
+                        <div className="label">C?digos expirados</div>
+                        <div className="mono">{expiredCodes}</div>
+                      </div>
+                      <div>
+                        <div className="label">Revoga??es</div>
+                        <div className="mono">{revokedCodes}</div>
+                      </div>
+                      <div>
+                        <div className="label">Emitidos hoje</div>
+                        <div className="mono">{issuedToday}</div>
+                      </div>
+                      <div>
+                        <div className="label">Usados hoje</div>
+                        <div className="mono">{usedToday}</div>
+                      </div>
+                      <div>
+                        <div className="label">Expirados hoje</div>
                         <div className="mono">{expiredToday}</div>
                       </div>
                       <div>
-                        <div className="label">Revogações</div>
+                        <div className="label">Revoga??es hoje</div>
                         <div className="mono">{revokedToday}</div>
                       </div>
-                    </div>
-
-                    <div className="row" style={{ marginTop: 12 }}>
-                      <button onClick={() => setView("search")} disabled={busy !== null}>
-                        Procurar código
-                      </button>
-                      <button onClick={() => setView("payments")} disabled={busy !== null}>
-                        Pagamentos
-                      </button>
-                      <button onClick={() => setView("events")} disabled={busy !== null}>
-                        Ver eventos
-                      </button>
-                      <button
-                        onClick={() => {
-                          setView("rfid");
-                          loadRfid();
-                        }}
-                        disabled={busy !== null}
-                      >
-                        RFID
-                      </button>
-                      <button onClick={() => setView("export")} disabled={busy !== null}>
-                        Exportar
-                      </button>
                     </div>
                   </section>
 
