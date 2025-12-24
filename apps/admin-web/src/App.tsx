@@ -1,4 +1,4 @@
-﻿﻿﻿import { useEffect, useMemo, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import type {
   AdminCodeDetailResponse,
@@ -562,54 +562,56 @@ export function App() {
                     </section>
                   ) : null}
 
-                  <section className="card">
-                    <h2>Dashboard</h2>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <div className="mono">Server time: {formatDateTime(serverTime)}</div>
-                      <button onClick={refresh} disabled={!canQuery || busy !== null}>
-                        Atualizar
-                      </button>
-                    </div>
+                  {view === "home" ? (
+                    <section className="card">
+                      <h2>Dashboard</h2>
+                      <div className="row" style={{ justifyContent: "space-between" }}>
+                        <div className="mono">Server time: {formatDateTime(serverTime)}</div>
+                        <button onClick={refresh} disabled={!canQuery || busy !== null}>
+                          Atualizar
+                        </button>
+                      </div>
 
-                    <div className="gridStats" style={{ marginTop: 12 }}>
-                      <div>
-                        <div className="label">Total de codigos</div>
-                        <div className="mono">{totalCodes}</div>
+                      <div className="gridStats" style={{ marginTop: 12 }}>
+                        <div>
+                          <div className="label">Total de códigos</div>
+                          <div className="mono">{totalCodes}</div>
+                        </div>
+                        <div>
+                          <div className="label">Códigos ativos</div>
+                          <div className="mono">{activeCodes}</div>
+                        </div>
+                        <div>
+                          <div className="label">Códigos usados</div>
+                          <div className="mono">{usedCodes}</div>
+                        </div>
+                        <div>
+                          <div className="label">Códigos expirados</div>
+                          <div className="mono">{expiredCodes}</div>
+                        </div>
+                        <div>
+                          <div className="label">Revogações</div>
+                          <div className="mono">{revokedCodes}</div>
+                        </div>
+                        <div>
+                          <div className="label">Emitidos hoje</div>
+                          <div className="mono">{issuedToday}</div>
+                        </div>
+                        <div>
+                          <div className="label">Usados hoje</div>
+                          <div className="mono">{usedToday}</div>
+                        </div>
+                        <div>
+                          <div className="label">Expirados hoje</div>
+                          <div className="mono">{expiredToday}</div>
+                        </div>
+                        <div>
+                          <div className="label">Revogações hoje</div>
+                          <div className="mono">{revokedToday}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="label">C?digos ativos</div>
-                        <div className="mono">{activeCodes}</div>
-                      </div>
-                      <div>
-                        <div className="label">C?digos usados</div>
-                        <div className="mono">{usedCodes}</div>
-                      </div>
-                      <div>
-                        <div className="label">C?digos expirados</div>
-                        <div className="mono">{expiredCodes}</div>
-                      </div>
-                      <div>
-                        <div className="label">Revoga??es</div>
-                        <div className="mono">{revokedCodes}</div>
-                      </div>
-                      <div>
-                        <div className="label">Emitidos hoje</div>
-                        <div className="mono">{issuedToday}</div>
-                      </div>
-                      <div>
-                        <div className="label">Usados hoje</div>
-                        <div className="mono">{usedToday}</div>
-                      </div>
-                      <div>
-                        <div className="label">Expirados hoje</div>
-                        <div className="mono">{expiredToday}</div>
-                      </div>
-                      <div>
-                        <div className="label">Revoga??es hoje</div>
-                        <div className="mono">{revokedToday}</div>
-                      </div>
-                    </div>
-                  </section>
+                    </section>
+                  ) : null}
 
                   {view === "search" ? (
                     <section className="card">
@@ -774,7 +776,7 @@ export function App() {
                                   disabled={busy !== null || role !== "superadmin"}
                                   title={role === "superadmin" ? "" : "Apenas superadmin"}
                                 >
-                                  Revogar
+                          <div className="label">Revogações</div>
                                 </button>
                               </div>
                             </>
