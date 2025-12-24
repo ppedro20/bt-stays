@@ -90,3 +90,38 @@ export type AdminEventsResponse = {
   me: { user_id: string; role: "admin" | "superadmin" };
   events: AdminCodeDetailResponse["events"];
 };
+
+export type AdminRfidListResponse = {
+  ok: true;
+  me: { user_id: string; role: "admin" | "superadmin" };
+  cards: Array<{
+    card_id: string;
+    card_uid: string;
+    access_code_id: string;
+    code_plaintext: string | null;
+    code_status: "issued" | "used" | "revoked" | "expired";
+    valid_until: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  logs: Array<{
+    log_id: string;
+    created_at: string;
+    card_id: string | null;
+    card_uid: string;
+    access_code_id: string | null;
+    keycard: string | null;
+    granted: boolean;
+    reason: string;
+  }>;
+};
+
+export type AdminRfidUpsertResponse = {
+  ok: true;
+  me: { user_id: string; role: "admin" | "superadmin" };
+  card: {
+    card_id: string;
+    card_uid: string;
+    access_code_id: string;
+  };
+};

@@ -88,6 +88,28 @@ As variaveis para Edge Functions estao no Modulo 1.
 npx supabase functions deploy
 ```
 
+## 6.1) RFID (cards + logs) setup
+
+Apply migrations (includes RFID tables/views/RPCs):
+
+```bash
+npx supabase db push
+```
+
+Deploy new Edge Functions:
+
+```bash
+npx supabase functions deploy admin_rfid_list
+npx supabase functions deploy admin_rfid_upsert
+npx supabase functions deploy device_consume_rfid
+```
+
+Device envs (Wokwi / ESP32):
+
+- Set `DEVICE_SECRET` in Supabase Edge Functions env (same as device).
+- Point the device to `device_consume_rfid`:
+  - `WOKWI_SUPABASE_RFID_URL=https://<project>.supabase.co/functions/v1/device_consume_rfid`
+
 ## 7) Seed superadmin (manual)
 
 1. Create a user in Supabase Auth (email/password).

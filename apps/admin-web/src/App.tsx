@@ -1,6 +1,12 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
-import type { AdminCodeDetailResponse, AdminEventsResponse, AdminListResponse, AdminPaymentsListResponse } from "./types";
+import type {
+  AdminCodeDetailResponse,
+  AdminEventsResponse,
+  AdminListResponse,
+  AdminPaymentsListResponse,
+  AdminRfidListResponse,
+} from "./types";
 
 function formatDateTime(iso: string | null) {
   if (!iso) return "-";
@@ -33,7 +39,7 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-type View = "home" | "search" | "events" | "payments" | "export";
+type View = "home" | "search" | "events" | "payments" | "export" | "rfid";
 
 export function App() {
   const [email, setEmail] = useState<string>("");
@@ -55,6 +61,11 @@ export function App() {
   const [codeDetail, setCodeDetail] = useState<AdminCodeDetailResponse | null>(null);
   const [events, setEvents] = useState<AdminEventsResponse["events"]>([]);
   const [payments, setPayments] = useState<AdminPaymentsListResponse["payments"]>([]);
+  const [rfidCards, setRfidCards] = useState<AdminRfidListResponse["cards"]>([]);
+  const [rfidLogs, setRfidLogs] = useState<AdminRfidListResponse["logs"]>([]);
+  const [rfidCardUid, setRfidCardUid] = useState<string>("");
+  const [rfidCode, setRfidCode] = useState<string>("");
+  const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("");
   const [paymentSince, setPaymentSince] = useState<string>("");
   const [paymentUntil, setPaymentUntil] = useState<string>("");
@@ -140,6 +151,11 @@ export function App() {
       setCodeDetail(null);
       setEvents([]);
       setPayments([]);
+      setRfidCards([]);
+      setRfidLogs([]);
+      setRfidCardUid("");
+      setRfidCode("");
+      setRfidLogFilter("");
       setPaymentStatusFilter("");
       setPaymentSince("");
       setPaymentUntil("");
@@ -230,6 +246,54 @@ export function App() {
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erro desconhecido");
       setPayments([]);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function loadRfid() {
+    setBusy("rfid");
+    setMessage(null);
+    try {
+      const { data, error } = await supabase.functions.invoke<AdminRfidListResponse>("admin_rfid_list", {
+        body: {},
+      });
+      if (error) throw error;
+      if (!data?.cards || !data?.logs) throw new Error("Resposta invalida do servidor");
+      setRfidCards(data.cards);
+      setRfidLogs(data.logs);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Erro desconhecido");
+      setRfidCards([]);
+      setRfidLogs([]);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function upsertRfidCard() {
+    const cardUid = rfidCardUid.trim();
+    const code = rfidCode.trim();
+    if (!cardUid) {
+      setMessage("Cartao UID obrigatorio.");
+      return;
+    }
+    if (!/^[0-9]{6}$/.test(code)) {
+      setMessage("Codigo deve ter 6 digitos.");
+      return;
+    }
+    setBusy("rfid_upsert");
+    setMessage(null);
+    try {
+      const { error } = await supabase.functions.invoke("admin_rfid_upsert", {
+        body: { card_uid: cardUid, code },
+      });
+      if (error) throw error;
+      setRfidCardUid("");
+      setRfidCode("");
+      await loadRfid();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
       setBusy(null);
     }
@@ -413,6 +477,15 @@ export function App() {
               </button>
               <button onClick={() => setView("events")} disabled={busy !== null}>
                 Ver eventos
+              </button>
+              <button
+                onClick={() => {
+                  setView("rfid");
+                  loadRfid();
+                }}
+                disabled={busy !== null}
+              >
+                RFID
               </button>
               <button onClick={() => setView("export")} disabled={busy !== null}>
                 Exportar
@@ -849,6 +922,122 @@ export function App() {
               ) : (
                 <div className="mono">No events (not loaded).</div>
               )}
+            </section>
+          ) : null}
+
+          {view === "rfid" ? (
+            <section className="card">
+              <h2>Cartoes RFID</h2>
+              <div className="row" style={{ marginBottom: 10 }}>
+                <input
+                  value={rfidCardUid}
+                  onChange={(e) => setRfidCardUid(e.target.value)}
+                  placeholder="card_uid (ex: 04A1B2C3D4)"
+                  autoComplete="off"
+                  disabled={busy !== null}
+                />
+                <input
+                  value={rfidCode}
+                  onChange={(e) => setRfidCode(e.target.value)}
+                  placeholder="codigo (6 digitos)"
+                  autoComplete="off"
+                  disabled={busy !== null}
+                />
+                <button onClick={upsertRfidCard} disabled={!canQuery || busy !== null}>
+                  Guardar
+                </button>
+                <button onClick={loadRfid} disabled={!canQuery || busy !== null} className="secondary">
+                  Recarregar
+                </button>
+                <button onClick={() => setView("home")} disabled={busy !== null} className="secondary">
+                  Voltar
+                </button>
+              </div>
+
+              {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
+
+              {rfidCards.length ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Card UID</th>
+                      <th>Codigo</th>
+                      <th>Status</th>
+                      <th>Valid until</th>
+                      <th>Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rfidCards.map((c) => (
+                      <tr key={c.card_id}>
+                        <td className="mono">{c.card_uid}</td>
+                        <td className="mono">{c.code_plaintext ?? "-"}</td>
+                        <td className="mono">{c.code_status}</td>
+                        <td className="mono">{formatDateTime(c.valid_until)}</td>
+                        <td className="mono">{formatDateTime(c.updated_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="mono">Sem cartoes (nao carregado).</div>
+              )}
+
+              <section className="card">
+                <h2>Logs RFID</h2>
+                <div className="row" style={{ marginBottom: 10 }}>
+                  <input
+                    value={rfidLogFilter}
+                    onChange={(e) => setRfidLogFilter(e.target.value)}
+                    placeholder="filtrar por card_uid ou codigo"
+                    autoComplete="off"
+                    disabled={busy !== null}
+                  />
+                  <button
+                    onClick={() => setRfidLogFilter("")}
+                    disabled={busy !== null}
+                    className="secondary"
+                  >
+                    Limpar
+                  </button>
+                </div>
+
+                {(() => {
+                  const q = rfidLogFilter.trim();
+                  const rows = q
+                    ? rfidLogs.filter(
+                        (l) =>
+                          l.card_uid.includes(q) || (l.keycard ? l.keycard.includes(q) : false),
+                      )
+                    : rfidLogs;
+
+                  if (!rows.length) return <div className="mono">Sem logs (nao carregado).</div>;
+                  return (
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Quando</th>
+                          <th>Card UID</th>
+                          <th>Keycard</th>
+                          <th>Resultado</th>
+                          <th>Motivo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((l) => (
+                          <tr key={l.log_id}>
+                            <td className="mono">{formatDateTime(l.created_at)}</td>
+                            <td className="mono">{l.card_uid}</td>
+                            <td className="mono">{l.keycard ?? "-"}</td>
+                            <td className="mono">{l.granted ? "granted" : "denied"}</td>
+                            <td className="mono">{l.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </section>
             </section>
           ) : null}
 

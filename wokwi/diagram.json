@@ -17,6 +17,13 @@
       "top": -299.6,
       "left": -176.8,
       "attrs": {}
+    },
+    {
+      "type": "chip-rfid-rc522",
+      "id": "rfid1",
+      "top": -28,
+      "left": 524,
+      "attrs": {}
     }
   ],
   "connections": [
@@ -33,7 +40,14 @@
     [ "keypad1:C1", "esp:26", "green", [ "v0" ] ],
     [ "keypad1:C2", "esp:25", "green", [ "v0" ] ],
     [ "esp:33", "keypad1:C3", "green", [ "h0" ] ],
-    [ "esp:32", "keypad1:C4", "green", [ "h0" ] ]
+    [ "esp:32", "keypad1:C4", "green", [ "h0" ] ],
+    [ "esp:3V3", "rfid1:VCC", "red", [ "h0" ] ],
+    [ "esp:GND.1", "rfid1:GND", "black", [ "h0" ] ],
+    [ "esp:18", "rfid1:SCK", "orange", [ "h0" ] ],
+    [ "esp:23", "rfid1:MOSI", "green", [ "h0" ] ],
+    [ "esp:19", "rfid1:MISO", "blue", [ "h0" ] ],
+    [ "esp:5", "rfid1:SDA", "purple", [ "h0" ] ],
+    [ "esp:4", "rfid1:RST", "yellow", [ "h0" ] ]
   ],
   "dependencies": {}
 }
