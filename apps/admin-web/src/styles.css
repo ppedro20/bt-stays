@@ -24,6 +24,77 @@ body {
   color: var(--text);
 }
 
+.appShell {
+  min-height: 100vh;
+  display: flex;
+  gap: 18px;
+  padding: 18px 18px 28px;
+}
+
+.sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(180deg, var(--panel), rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+  height: calc(100vh - 32px);
+}
+
+.sidebarTop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brandButton {
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+}
+
+.brandTitle {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.sidebarNav {
+  display: grid;
+  gap: 10px;
+}
+
+.navBtn {
+  width: 100%;
+  text-align: left;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.navBtn.active {
+  border-color: rgba(99, 102, 241, 0.6);
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.sidebarFooter {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.content {
+  flex: 1;
+}
+
 .container {
   max-width: 1100px;
   margin: 0 auto;
@@ -131,6 +202,17 @@ button.danger {
 }
 
 @media (max-width: 900px) {
+  .appShell {
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+  }
+
   .grid2 {
     grid-template-columns: 1fr;
   }
