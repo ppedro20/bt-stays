@@ -66,6 +66,7 @@ export function App() {
   const [rfidLogs, setRfidLogs] = useState<AdminRfidListResponse["logs"]>([]);
   const [rfidCardUid, setRfidCardUid] = useState<string>("");
   const [rfidKeycard, setRfidKeycard] = useState<string>("");
+  const [rfidKeycardAuto, setRfidKeycardAuto] = useState<boolean>(true);
   const [rfidEditCardUid, setRfidEditCardUid] = useState<string | null>(null);
   const [rfidEditPin, setRfidEditPin] = useState<string>("");
   const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
@@ -158,6 +159,7 @@ export function App() {
       setRfidLogs([]);
       setRfidCardUid("");
       setRfidKeycard("");
+      setRfidKeycardAuto(true);
       setRfidEditCardUid(null);
       setRfidEditPin("");
       setRfidLogFilter("");
@@ -291,6 +293,7 @@ export function App() {
       if (error) throw error;
       setRfidCardUid("");
       setRfidKeycard("");
+      setRfidKeycardAuto(true);
       await loadRfid();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erro desconhecido");
@@ -1053,7 +1056,12 @@ export function App() {
                               const value = e.target.value;
                               const trimmed = value.trim();
                               setRfidCardUid(value);
-                              if (!rfidKeycard.trim() && trimmed) {
+                              if (!trimmed) {
+                                setRfidKeycard("");
+                                setRfidKeycardAuto(true);
+                                return;
+                              }
+                              if (rfidKeycardAuto) {
                                 setRfidKeycard(trimmed);
                               }
                             }}
@@ -1063,7 +1071,10 @@ export function App() {
                           />
                           <input
                             value={rfidKeycard}
-                            onChange={(e) => setRfidKeycard(e.target.value)}
+                            onChange={(e) => {
+                              setRfidKeycard(e.target.value);
+                              setRfidKeycardAuto(false);
+                            }}
                             placeholder="pin (opcional)"
                             autoComplete="off"
                             disabled={busy !== null}
