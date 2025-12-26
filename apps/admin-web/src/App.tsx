@@ -1078,7 +1078,7 @@ export function App() {
                   {view === "rfid" ? (
                     <>
                       <section className="card">
-                        <h2>Cartoes RFID</h2>
+                        <h2>Criar cartao RFID</h2>
                         <div className="row" style={{ marginBottom: 10 }}>
                           <input
                             value={rfidCardUid}
@@ -1119,6 +1119,14 @@ export function App() {
                             Voltar
                           </button>
                         </div>
+
+                        {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
+
+                        {!rfidCards.length ? <div className="mono">Sem cartoes (nao carregado).</div> : null}
+                      </section>
+
+                      <section className="card">
+                        <h2>Acesso remoto</h2>
                         <div className="row" style={{ marginBottom: 10 }}>
                           <select
                             value={rfidRemoteCardUid}
@@ -1153,9 +1161,11 @@ export function App() {
                             Desbloquear
                           </button>
                         </div>
+                        {!rfidCards.length ? <div className="mono">Sem cartoes (nao carregado).</div> : null}
+                      </section>
 
-                        {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
-
+                      <section className="card">
+                        <h2>Lista de cartoes</h2>
                         {rfidCards.length ? (
                           <table>
                             <thead>
