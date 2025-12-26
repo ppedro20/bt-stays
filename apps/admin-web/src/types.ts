@@ -99,12 +99,14 @@ export type AdminRfidListResponse = {
     card_uid: string;
     permanent: boolean;
     keycard: string | null;
+    blocked: boolean;
     access_code_id: string | null;
     code_plaintext: string | null;
     code_status: "issued" | "used" | "revoked" | "expired" | null;
     valid_until: string | null;
     created_at: string;
     updated_at: string;
+    last_granted_at: string | null;
   }>;
   logs: Array<{
     log_id: string;

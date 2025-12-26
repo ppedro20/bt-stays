@@ -70,6 +70,7 @@ export function App() {
   const [rfidEditCardUid, setRfidEditCardUid] = useState<string | null>(null);
   const [rfidEditPin, setRfidEditPin] = useState<string>("");
   const [rfidLogFilter, setRfidLogFilter] = useState<string>("");
+  const [rfidRemoteCardUid, setRfidRemoteCardUid] = useState<string>("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("");
   const [paymentSince, setPaymentSince] = useState<string>("");
   const [paymentUntil, setPaymentUntil] = useState<string>("");
@@ -163,6 +164,7 @@ export function App() {
       setRfidEditCardUid(null);
       setRfidEditPin("");
       setRfidLogFilter("");
+      setRfidRemoteCardUid("");
       setPaymentStatusFilter("");
       setPaymentSince("");
       setPaymentUntil("");
@@ -334,6 +336,34 @@ export function App() {
       });
       if (error) throw error;
       await loadRfid();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Erro desconhecido");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function requestRfidRemote(action: "open" | "block" | "unblock") {
+    const cardUid = rfidRemoteCardUid.trim();
+    if (!cardUid) {
+      setMessage("Selecionar keycard primeiro.");
+      return;
+    }
+    setBusy(`rfid_remote:${action}`);
+    setMessage(null);
+    try {
+      const { error } = await supabase.functions.invoke("admin_rfid_remote", {
+        body: { card_uid: cardUid, action },
+      });
+      if (error) throw error;
+      await loadRfid();
+      const msg =
+        action === "open"
+          ? "Abertura remota enviada."
+          : action === "block"
+            ? "Cartao bloqueado."
+            : "Cartao desbloqueado.";
+      setMessage(msg);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erro desconhecido");
     } finally {
@@ -1089,6 +1119,40 @@ export function App() {
                             Voltar
                           </button>
                         </div>
+                        <div className="row" style={{ marginBottom: 10 }}>
+                          <select
+                            value={rfidRemoteCardUid}
+                            onChange={(e) => setRfidRemoteCardUid(e.target.value)}
+                            disabled={busy !== null || !canQuery}
+                          >
+                            <option value="">Selecionar keycard...</option>
+                            {rfidCards.map((c) => (
+                              <option key={c.card_id} value={c.card_uid}>
+                                {(c.keycard ?? c.card_uid) + " (" + c.card_uid + ")"}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => requestRfidRemote("open")}
+                            disabled={busy !== null || !canQuery || !rfidRemoteCardUid.trim()}
+                          >
+                            Abrir remotamente
+                          </button>
+                          <button
+                            onClick={() => requestRfidRemote("block")}
+                            disabled={busy !== null || !canQuery || !rfidRemoteCardUid.trim()}
+                            className="danger"
+                          >
+                            Bloquear
+                          </button>
+                          <button
+                            onClick={() => requestRfidRemote("unblock")}
+                            disabled={busy !== null || !canQuery || !rfidRemoteCardUid.trim()}
+                            className="secondary"
+                          >
+                            Desbloquear
+                          </button>
+                        </div>
 
                         {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
 
@@ -1099,9 +1163,11 @@ export function App() {
                                 <th>Card UID</th>
                                 <th>Tipo</th>
                                 <th>PIN</th>
+                                <th>Bloqueado</th>
                                 <th>Codigo</th>
                                 <th>Status</th>
                                 <th>Valid until</th>
+                                <th>Ultima abertura</th>
                                 <th>Atualizado</th>
                                 <th></th>
                               </tr>
@@ -1124,9 +1190,11 @@ export function App() {
                                       c.keycard ?? "-"
                                     )}
                                   </td>
+                                  <td className="mono">{c.blocked ? "sim" : "nao"}</td>
                                   <td className="mono">{c.code_plaintext ?? "-"}</td>
                                   <td className="mono">{c.code_status ?? "-"}</td>
                                   <td className="mono">{formatDateTime(c.valid_until)}</td>
+                                  <td className="mono">{formatDateTime(c.last_granted_at)}</td>
                                   <td className="mono">{formatDateTime(c.updated_at)}</td>
                                   <td>
                                     {rfidEditCardUid === c.card_uid ? (
