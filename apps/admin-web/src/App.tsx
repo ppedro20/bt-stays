@@ -65,7 +65,6 @@ export function App() {
   const [rfidCards, setRfidCards] = useState<AdminRfidListResponse["cards"]>([]);
   const [rfidLogs, setRfidLogs] = useState<AdminRfidListResponse["logs"]>([]);
   const [rfidCardUid, setRfidCardUid] = useState<string>("");
-  const [rfidPermanent, setRfidPermanent] = useState<boolean>(false);
   const [rfidKeycard, setRfidKeycard] = useState<string>("");
   const [rfidEditCardUid, setRfidEditCardUid] = useState<string | null>(null);
   const [rfidEditPin, setRfidEditPin] = useState<string>("");
@@ -158,7 +157,6 @@ export function App() {
       setRfidCards([]);
       setRfidLogs([]);
       setRfidCardUid("");
-      setRfidPermanent(false);
       setRfidKeycard("");
       setRfidEditCardUid(null);
       setRfidEditPin("");
@@ -288,11 +286,10 @@ export function App() {
     setMessage(null);
     try {
       const { error } = await supabase.functions.invoke("admin_rfid_upsert", {
-        body: { card_uid: cardUid, permanent: true, keycard: rfidKeycard.trim() || null },
+        body: { card_uid: cardUid, permanent: true, keycard: rfidKeycard.trim() || cardUid },
       });
       if (error) throw error;
       setRfidCardUid("");
-      setRfidPermanent(false);
       setRfidKeycard("");
       await loadRfid();
     } catch (e) {
@@ -1046,140 +1043,131 @@ export function App() {
                   ) : null}
 
                   {view === "rfid" ? (
-                    <section className="card">
-                      <h2>Cartoes RFID</h2>
-                      <div className="row" style={{ marginBottom: 10 }}>
-                        <input
-                          value={rfidCardUid}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            const trimmed = value.trim();
-                            setRfidCardUid(value);
-                            if (!rfidKeycard.trim() && trimmed) {
-                              setRfidKeycard(trimmed);
-                            }
-                            if (!rfidPermanent) setRfidPermanent(true);
-                          }}
-                          placeholder="card_uid (ex: 04A1B2C3D4)"
-                          autoComplete="off"
-                          disabled={busy !== null}
-                        />
-                        <label className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <>
+                      <section className="card">
+                        <h2>Cartoes RFID</h2>
+                        <div className="row" style={{ marginBottom: 10 }}>
                           <input
-                            type="checkbox"
-                            checked={rfidPermanent}
-                            onChange={(e) => setRfidPermanent(e.target.checked)}
-                            disabled={true}
-                            style={{ width: "auto" }}
+                            value={rfidCardUid}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const trimmed = value.trim();
+                              setRfidCardUid(value);
+                              if (!rfidKeycard.trim() && trimmed) {
+                                setRfidKeycard(trimmed);
+                              }
+                            }}
+                            placeholder="card_uid (ex: 04A1B2C3D4)"
+                            autoComplete="off"
+                            disabled={busy !== null}
                           />
-                          permanente
-                        </label>
-                        <input
-                          value={rfidKeycard}
-                          onChange={(e) => setRfidKeycard(e.target.value)}
-                          placeholder="pin (opcional)"
-                          autoComplete="off"
-                          disabled={busy !== null}
-                        />
-                        <button onClick={upsertRfidCard} disabled={!canQuery || busy !== null}>
-                          Guardar
-                        </button>
-                        <button onClick={loadRfid} disabled={!canQuery || busy !== null} className="secondary">
-                          Recarregar
-                        </button>
-                        <button onClick={() => setView("home")} disabled={busy !== null} className="secondary">
-                          Voltar
-                        </button>
-                      </div>
+                          <input
+                            value={rfidKeycard}
+                            onChange={(e) => setRfidKeycard(e.target.value)}
+                            placeholder="pin (opcional)"
+                            autoComplete="off"
+                            disabled={busy !== null}
+                          />
+                          <button onClick={upsertRfidCard} disabled={!canQuery || busy !== null}>
+                            Criar
+                          </button>
+                          <button onClick={loadRfid} disabled={!canQuery || busy !== null} className="secondary">
+                            Recarregar
+                          </button>
+                          <button onClick={() => setView("home")} disabled={busy !== null} className="secondary">
+                            Voltar
+                          </button>
+                        </div>
 
-                      {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
+                        {busy === "rfid" ? <div className="mono">Loading: rfid</div> : null}
 
-                      {rfidCards.length ? (
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Card UID</th>
-                              <th>Tipo</th>
-                              <th>PIN</th>
-                              <th>Codigo</th>
-                              <th>Status</th>
-                              <th>Valid until</th>
-                              <th>Atualizado</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rfidCards.map((c) => (
-                              <tr key={c.card_id}>
-                                <td className="mono">{c.card_uid}</td>
-                                <td className="mono">{c.permanent ? "permanente" : "codigo"}</td>
-                                <td className="mono">
-                                  {rfidEditCardUid === c.card_uid ? (
-                                    <input
-                                      value={rfidEditPin}
-                                      onChange={(e) => setRfidEditPin(e.target.value)}
-                                      placeholder="PIN"
-                                      autoComplete="off"
-                                      disabled={busy !== null}
-                                    />
-                                  ) : (
-                                    c.keycard ?? "-"
-                                  )}
-                                </td>
-                                <td className="mono">{c.code_plaintext ?? "-"}</td>
-                                <td className="mono">{c.code_status ?? "-"}</td>
-                                <td className="mono">{formatDateTime(c.valid_until)}</td>
-                                <td className="mono">{formatDateTime(c.updated_at)}</td>
-                                <td>
-                                  {rfidEditCardUid === c.card_uid ? (
-                                    <>
-                                      <button
-                                        onClick={() => saveRfidPin(c.card_uid)}
-                                        disabled={busy !== null}
-                                        className="link"
-                                      >
-                                        guardar pin
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setRfidEditCardUid(null);
-                                          setRfidEditPin("");
-                                        }}
-                                        disabled={busy !== null}
-                                        className="link"
-                                      >
-                                        cancelar
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setRfidEditCardUid(c.card_uid);
-                                          setRfidEditPin(c.keycard ?? c.card_uid);
-                                        }}
-                                        disabled={busy !== null}
-                                        className="link"
-                                      >
-                                        editar pin
-                                      </button>
-                                      <button
-                                        onClick={() => deleteRfidCard(c.card_id, c.card_uid)}
-                                        disabled={busy !== null}
-                                        className="link"
-                                      >
-                                        eliminar
-                                      </button>
-                                    </>
-                                  )}
-                                </td>
+                        {rfidCards.length ? (
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Card UID</th>
+                                <th>Tipo</th>
+                                <th>PIN</th>
+                                <th>Codigo</th>
+                                <th>Status</th>
+                                <th>Valid until</th>
+                                <th>Atualizado</th>
+                                <th></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="mono">Sem cartoes (nao carregado).</div>
-                      )}
+                            </thead>
+                            <tbody>
+                              {rfidCards.map((c) => (
+                                <tr key={c.card_id}>
+                                  <td className="mono">{c.card_uid}</td>
+                                  <td className="mono">{c.permanent ? "permanente" : "codigo"}</td>
+                                  <td className="mono">
+                                    {rfidEditCardUid === c.card_uid ? (
+                                      <input
+                                        value={rfidEditPin}
+                                        onChange={(e) => setRfidEditPin(e.target.value)}
+                                        placeholder="PIN"
+                                        autoComplete="off"
+                                        disabled={busy !== null}
+                                      />
+                                    ) : (
+                                      c.keycard ?? "-"
+                                    )}
+                                  </td>
+                                  <td className="mono">{c.code_plaintext ?? "-"}</td>
+                                  <td className="mono">{c.code_status ?? "-"}</td>
+                                  <td className="mono">{formatDateTime(c.valid_until)}</td>
+                                  <td className="mono">{formatDateTime(c.updated_at)}</td>
+                                  <td>
+                                    {rfidEditCardUid === c.card_uid ? (
+                                      <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+                                        <button
+                                          onClick={() => saveRfidPin(c.card_uid)}
+                                          disabled={busy !== null}
+                                          className="link"
+                                        >
+                                          guardar pin
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setRfidEditCardUid(null);
+                                            setRfidEditPin("");
+                                          }}
+                                          disabled={busy !== null}
+                                          className="link"
+                                        >
+                                          cancelar
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+                                        <button
+                                          onClick={() => {
+                                            setRfidEditCardUid(c.card_uid);
+                                            setRfidEditPin(c.keycard ?? c.card_uid);
+                                          }}
+                                          disabled={busy !== null}
+                                          className="link"
+                                        >
+                                          editar pin
+                                        </button>
+                                        <button
+                                          onClick={() => deleteRfidCard(c.card_id, c.card_uid)}
+                                          disabled={busy !== null}
+                                          className="link"
+                                        >
+                                          eliminar
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="mono">Sem cartoes (nao carregado).</div>
+                        )}
+                      </section>
 
                       <section className="card">
                         <h2>Logs RFID</h2>
@@ -1236,7 +1224,7 @@ export function App() {
                           );
                         })()}
                       </section>
-                    </section>
+                    </>
                   ) : null}
 
                   {view === "export" ? (
